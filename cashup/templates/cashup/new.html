@@ -1,0 +1,700 @@
+{% extends "base.html" %}
+
+{% block title %}New Cash-Up - CashUp{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">New Cash-Up</h1>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST" id="cashupForm">
+            <div class="mb-3">
+                <label for="entry_date" class="form-label">Date *</label>
+                <input type="date" class="form-control" id="entry_date" name="entry_date" required value="{{ today }}">
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="total_cc" class="form-label">Total CC</label>
+                    <input type="text" class="form-control" id="total_cc" name="total_cc" readonly value="{{ "%.2f"|format(day_total_cc) }}" data-saved-total="{{ "%.2f"|format(day_total_cc) }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="field_2" class="form-label">Field 2</label>
+                    <input type="number" class="form-control" id="field_2" name="field_2" step="0.01" min="0" value="0">
+                </div>
+                <div class="col-md-4">
+                    <label for="field_3" class="form-label">Field 3</label>
+                    <input type="number" class="form-control" id="field_3" name="field_3" step="0.01" min="0" value="0">
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered" id="cashupTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 12%;">Staff Name *</th>
+                            <th style="width: 9%;">Turnover *</th>
+                            <th style="width: 9%;">Credit Card *</th>
+                            <th style="width: 7%;">Breakages</th>
+                            <th style="width: 7%;">Tip Amount</th>
+                            <th style="width: 7%;">Box Office Tips</th>
+                            <th style="width: 7%;">Actual Box Office</th>
+                            <th style="width: 7%;">Runners Tips</th>
+                            <th style="width: 7%;">Bar Tips</th>
+                            <th style="width: 7%;">Kitchen Tips</th>
+                            <th style="width: 6%;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cashupRows">
+                        <tr class="cashup-row">
+                            <td>
+                                <select class="form-select form-select-sm staff-select" name="staff_id" required>
+                                    <option value="">Select staff...</option>
+                                    {% for staff in staff_list %}
+                                    <option value="{{ staff.id }}">{{ staff.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number" 
+                                       class="form-control form-control-sm numeric-input turnover-input" 
+                                       name="turnover_0" 
+                                       step="0.01" 
+                                       min="0" 
+                                       required>
+                            </td>
+                            <td>
+                                <input type="number" 
+                                       class="form-control form-control-sm numeric-input creditcard-input" 
+                                       name="credit_card_0" 
+                                       step="0.01" 
+                                       min="0" 
+                                       required>
+                            </td>
+                            <td>
+                                <input type="number" 
+                                       class="form-control form-control-sm numeric-input breakages-input" 
+                                       name="breakages_0" 
+                                       step="0.01" 
+                                       min="0" 
+                                       value="0">
+                            </td>
+                            <td>
+                                <input type="text" 
+                                       class="form-control form-control-sm tip-amount" 
+                                       name="tip_0" 
+                                       readonly 
+                                       value="0.00">
+                            </td>
+                            <td>
+                                <input type="number" 
+                                       class="form-control form-control-sm numeric-input box-office-tips-input" 
+                                       name="box_office_tips_0" 
+                                       step="0.01" 
+                                       min="0" 
+                                       value="0">
+                            </td>
+                            <td>
+                                <input type="text" 
+                                       class="form-control form-control-sm actual-box-office" 
+                                       name="actual_box_office_0" 
+                                       readonly 
+                                       value="0.00">
+                            </td>
+                            <td>
+                                <input type="number" 
+                                       class="form-control form-control-sm numeric-input runners-tips-input" 
+                                       name="runners_tips_0" 
+                                       step="0.01" 
+                                       min="0" 
+                                       value="0">
+                            </td>
+                            <td>
+                                <input type="number" 
+                                       class="form-control form-control-sm numeric-input bar-tips-input" 
+                                       name="bar_tips_0" 
+                                       step="0.01" 
+                                       min="0" 
+                                       value="0">
+                            </td>
+                            <td>
+                                <input type="number" 
+                                       class="form-control form-control-sm numeric-input kitchen-tips-input" 
+                                       name="kitchen_tips_0" 
+                                       step="0.01" 
+                                       min="0" 
+                                       value="0">
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-danger remove-row" disabled>Remove</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-3">
+                <button type="button" class="btn btn-secondary" id="addRowBtn">Add Row</button>
+                <button type="submit" class="btn btn-primary">Save Cash-Ups</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Cash-Up History Section -->
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">Cash-Up History</h2>
+        <form method="GET" class="d-flex align-items-center gap-2" style="margin: 0;">
+            <input type="hidden" name="staff_id" value="{{ filter_staff_id }}">
+            <label for="date" class="form-label mb-0 d-flex align-items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-calendar3 me-2" viewBox="0 0 16 16">
+                    <path d="M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2zM1 3.857C1 3.384 1.448 3 2 3h12c.552 0 1 .384 1 .857v10.286c0 .473-.448.857-1 .857H2c-.552 0-1-.384-1-.857V3.857z"/>
+                    <path d="M7 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+                </svg>
+            </label>
+            <input type="date" 
+                   class="form-control" 
+                   id="date" 
+                   name="date" 
+                   value="{{ filter_date }}"
+                   onchange="this.form.submit()"
+                   style="width: auto;">
+        </form>
+    </div>
+    <div class="card-body">
+        <!-- Staff Filter -->
+        <form method="GET" class="row g-3 mb-4">
+            <input type="hidden" name="date" value="{{ filter_date }}">
+            <div class="col-md-6">
+                <label for="staff_id" class="form-label">Filter by Staff</label>
+                <select class="form-select" id="staff_id" name="staff_id" onchange="this.form.submit()">
+                    <option value="">All Staff</option>
+                    {% for staff in staff_list %}
+                    <option value="{{ staff.id }}" {% if filter_staff_id == staff.id|string %}selected{% endif %}>
+                        {{ staff.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+                <a href="{{ url_for('cashup.new_cashup', date=filter_date) }}" class="btn btn-secondary">Clear Staff Filter</a>
+            </div>
+        </form>
+
+        <!-- Cash-Ups Table -->
+        {% if cashups %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Staff Name</th>
+                        <th class="text-end">Turnover</th>
+                        <th class="text-end">Credit Card</th>
+                        <th class="text-end">Breakages</th>
+                        <th class="text-end">Tip Amount</th>
+                        <th class="text-end">Box Office Tips</th>
+                        <th class="text-end">Actual Box Office</th>
+                        <th class="text-end">Runners Tips</th>
+                        <th class="text-end">Bar Tips</th>
+                        <th class="text-end">Kitchen Tips</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cashup in cashups %}
+                    <tr>
+                        <td>{{ cashup.staff.name }}</td>
+                        <td class="text-end">R{{ "%.2f"|format(cashup.turnover) }}</td>
+                        <td class="text-end">R{{ "%.2f"|format(cashup.credit_card_total) }}</td>
+                        <td class="text-end">R{{ "%.2f"|format(cashup.breakages) }}</td>
+                        <td class="text-end {% if cashup.tip_amount < 0 %}text-danger fw-bold{% endif %}">
+                            R{{ "%.2f"|format(cashup.tip_amount) }}
+                        </td>
+                        <td class="text-end">R{{ "%.2f"|format(cashup.box_office_tips) }}</td>
+                        <td class="text-end">R{{ "%.2f"|format(cashup.actual_box_office) }}</td>
+                        <td class="text-end">R{{ "%.2f"|format(cashup.runners_tips) }}</td>
+                        <td class="text-end">R{{ "%.2f"|format(cashup.bar_tips) }}</td>
+                        <td class="text-end">R{{ "%.2f"|format(cashup.kitchen_tips) }}</td>
+                        <td>{{ cashup.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="2">Total</th>
+                        <th class="text-end">R{{ "%.2f"|format(total_turnover) }}</th>
+                        <th class="text-end">R{{ "%.2f"|format(total_credit_card) }}</th>
+                        <th class="text-end">R{{ "%.2f"|format(total_breakages) }}</th>
+                        <th class="text-end">R{{ "%.2f"|format(total_tips) }}</th>
+                        <th class="text-end">R{{ "%.2f"|format(total_box_office_tips) }}</th>
+                        <th class="text-end">R{{ "%.2f"|format(total_actual_box_office) }}</th>
+                        <th class="text-end">R{{ "%.2f"|format(total_runners_tips) }}</th>
+                        <th class="text-end">R{{ "%.2f"|format(total_bar_tips) }}</th>
+                        <th class="text-end">R{{ "%.2f"|format(total_kitchen_tips) }}</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5">
+            <p>No cash-ups found.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('cashupTable');
+    const tbody = document.getElementById('cashupRows');
+    const addRowBtn = document.getElementById('addRowBtn');
+    const entryDate = document.getElementById('entry_date');
+    const totalCCInput = document.getElementById('total_cc');
+    let rowCount = 1;
+
+    // Get saved total CC from database
+    const savedTotalCC = parseFloat(totalCCInput.getAttribute('data-saved-total')) || 0;
+
+    // Get staff options HTML
+    const staffOptions = `{% for staff in staff_list %}<option value="{{ staff.id }}">{{ staff.name }}</option>{% endfor %}`;
+
+    // Add new row
+    addRowBtn.addEventListener('click', function() {
+        const newRow = document.createElement('tr');
+        newRow.className = 'cashup-row';
+        newRow.innerHTML = `
+            <td>
+                <select class="form-select form-select-sm staff-select" name="staff_id" required>
+                    <option value="">Select staff...</option>
+                    ${staffOptions}
+                </select>
+            </td>
+            <td>
+                <input type="number" 
+                       class="form-control form-control-sm numeric-input turnover-input" 
+                       name="turnover_${rowCount}" 
+                       step="0.01" 
+                       min="0" 
+                       required>
+            </td>
+            <td>
+                <input type="number" 
+                       class="form-control form-control-sm numeric-input creditcard-input" 
+                       name="credit_card_${rowCount}" 
+                       step="0.01" 
+                       min="0" 
+                       required>
+            </td>
+            <td>
+                <input type="number" 
+                       class="form-control form-control-sm numeric-input breakages-input" 
+                       name="breakages_${rowCount}" 
+                       step="0.01" 
+                       min="0" 
+                       value="0">
+            </td>
+            <td>
+                <input type="text" 
+                       class="form-control form-control-sm tip-amount" 
+                       name="tip_${rowCount}" 
+                       readonly 
+                       value="0.00">
+            </td>
+            <td>
+                <input type="number" 
+                       class="form-control form-control-sm numeric-input box-office-tips-input" 
+                       name="box_office_tips_${rowCount}" 
+                       step="0.01" 
+                       min="0" 
+                       value="0">
+            </td>
+            <td>
+                <input type="text" 
+                       class="form-control form-control-sm actual-box-office" 
+                       name="actual_box_office_${rowCount}" 
+                       readonly 
+                       value="0.00">
+            </td>
+            <td>
+                <input type="number" 
+                       class="form-control form-control-sm numeric-input runners-tips-input" 
+                       name="runners_tips_${rowCount}" 
+                       step="0.01" 
+                       min="0" 
+                       value="0">
+            </td>
+            <td>
+                <input type="number" 
+                       class="form-control form-control-sm numeric-input bar-tips-input" 
+                       name="bar_tips_${rowCount}" 
+                       step="0.01" 
+                       min="0" 
+                       value="0">
+            </td>
+            <td>
+                <input type="number" 
+                       class="form-control form-control-sm numeric-input kitchen-tips-input" 
+                       name="kitchen_tips_${rowCount}" 
+                       step="0.01" 
+                       min="0" 
+                       value="0">
+            </td>
+            <td>
+                <button type="button" class="btn btn-sm btn-danger remove-row">Remove</button>
+            </td>
+        `;
+        tbody.appendChild(newRow);
+        rowCount++;
+        updateRemoveButtons();
+        attachRowListeners(newRow);
+        calculateTotalCC(); // Update total CC when new row is added
+    });
+
+    // Remove row
+    tbody.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-row')) {
+            const row = e.target.closest('tr');
+            row.remove();
+            updateRemoveButtons();
+            calculateTotalCC(); // Update total CC when row is removed
+        }
+    });
+
+    // Update remove buttons state
+    function updateRemoveButtons() {
+        const rows = tbody.querySelectorAll('.cashup-row');
+        rows.forEach((row, index) => {
+            const removeBtn = row.querySelector('.remove-row');
+            removeBtn.disabled = rows.length === 1;
+        });
+    }
+
+    // Calculate total CC from saved cash-ups + current form entries
+    function calculateTotalCC() {
+        const rows = tbody.querySelectorAll('.cashup-row');
+        let formTotalCC = 0;
+        
+        rows.forEach((row) => {
+            const creditCardInput = row.querySelector('.creditcard-input');
+            if (creditCardInput && creditCardInput.value) {
+                formTotalCC += parseFloat(creditCardInput.value) || 0;
+            }
+        });
+        
+        // Total = saved cash-ups total + current form entries total
+        const totalCC = savedTotalCC + formTotalCC;
+        
+        if (totalCCInput) {
+            totalCCInput.value = totalCC.toFixed(2);
+        }
+    }
+
+    // Update total CC when date changes (reloads page with new date's data)
+    entryDate.addEventListener('change', function() {
+        // The page will reload with the new date, showing the correct total CC from database
+        const selectedDate = entryDate.value;
+        if (selectedDate) {
+            window.location.href = `{{ url_for('cashup.new_cashup') }}?date=${selectedDate}`;
+        }
+    });
+    
+    // Prevent Enter key from submitting form, add new row instead
+    document.getElementById('cashupForm').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const target = e.target;
+            // Don't prevent Enter in textarea or if it's the submit button
+            if (target.tagName !== 'TEXTAREA' && target.type !== 'submit') {
+                e.preventDefault();
+                
+                // If we're in the last input of the last row, add a new row
+                const rows = tbody.querySelectorAll('.cashup-row');
+                const lastRow = rows[rows.length - 1];
+                if (lastRow && lastRow.contains(target)) {
+                    // Check if we're in the last input field of the row
+                    const inputs = lastRow.querySelectorAll('input, select');
+                    const lastInput = inputs[inputs.length - 1];
+                    
+                    if (target === lastInput || inputs[inputs.length - 2] === target) {
+                        // Add new row
+                        addRowBtn.click();
+                        // Focus on the first input of the new row
+                        setTimeout(() => {
+                            const newRows = tbody.querySelectorAll('.cashup-row');
+                            const newLastRow = newRows[newRows.length - 1];
+                            if (newLastRow) {
+                                const firstInput = newLastRow.querySelector('.staff-select');
+                                if (firstInput) firstInput.focus();
+                            }
+                        }, 10);
+                    } else {
+                        // Move to next input in same row
+                        const inputs = Array.from(lastRow.querySelectorAll('input, select'));
+                        const currentIndex = inputs.indexOf(target);
+                        if (currentIndex < inputs.length - 1) {
+                            inputs[currentIndex + 1].focus();
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Calculate tip for a row
+    function calculateTip(row) {
+        const turnoverInput = row.querySelector('.turnover-input');
+        const creditCardInput = row.querySelector('.creditcard-input');
+        const breakagesInput = row.querySelector('.breakages-input');
+        const runnersTipsInput = row.querySelector('.runners-tips-input');
+        const barTipsInput = row.querySelector('.bar-tips-input');
+        const kitchenTipsInput = row.querySelector('.kitchen-tips-input');
+        const tipInput = row.querySelector('.tip-amount');
+
+        const turnover = parseFloat(turnoverInput.value) || 0;
+        const creditCard = parseFloat(creditCardInput.value) || 0;
+        const breakages = parseFloat(breakagesInput.value) || 0;
+        const runnersTips = parseFloat(runnersTipsInput.value) || 0;
+        const barTips = parseFloat(barTipsInput.value) || 0;
+        const kitchenTips = parseFloat(kitchenTipsInput.value) || 0;
+        
+        // Tip = Credit Card - Turnover - Breakages - Runners Tips - Bar Tips - Kitchen Tips
+        const tip = creditCard - turnover - breakages - runnersTips - barTips - kitchenTips;
+
+        // Update tip display
+        tipInput.value = tip.toFixed(2);
+
+        // Validate and highlight errors
+        let hasError = false;
+        
+        // Remove previous error classes
+        turnoverInput.classList.remove('is-invalid');
+        creditCardInput.classList.remove('is-invalid');
+        breakagesInput.classList.remove('is-invalid');
+        tipInput.classList.remove('tip-negative');
+
+        // Highlight negative tips
+        if (tip < 0) {
+            tipInput.classList.add('tip-negative');
+            hasError = true;
+        }
+
+        return !hasError;
+    }
+
+    // Calculate actual box office and add percentages to tip fields
+    function calculateActualBoxOffice(row) {
+        const boxOfficeTipsInput = row.querySelector('.box-office-tips-input');
+        const actualBoxOfficeInput = row.querySelector('.actual-box-office');
+        const runnersTipsInput = row.querySelector('.runners-tips-input');
+        const barTipsInput = row.querySelector('.bar-tips-input');
+        const kitchenTipsInput = row.querySelector('.kitchen-tips-input');
+        const turnoverInput = row.querySelector('.turnover-input');
+        
+        const boxOfficeTips = parseFloat(boxOfficeTipsInput.value) || 0;
+        const turnover = parseFloat(turnoverInput.value) || 0;
+        
+        if (boxOfficeTips > 0) {
+            // Actual Box Office = Box Office Tips - 8% (bar) - 8% (runners) - 4% (kitchen)
+            // = Box Office Tips - 20% = Box Office Tips × 0.80
+            const actualBoxOffice = boxOfficeTips * 0.80;
+            actualBoxOfficeInput.value = actualBoxOffice.toFixed(2);
+            
+            // Calculate base values from turnover (if turnover exists)
+            const baseRunnersTips = turnover > 0 ? turnover * 0.01 : 0;  // 1% of turnover
+            const baseBarTips = turnover > 0 ? turnover * 0.01 : 0;  // 1% of turnover
+            const baseKitchenTips = turnover > 0 ? turnover * 0.005 : 0;  // 0.5% of turnover
+            
+            // Add box office percentages on top of turnover-based values
+            const barTipAddition = boxOfficeTips * 0.08;  // 8% for bar
+            const runnersTipAddition = boxOfficeTips * 0.08;  // 8% for runners
+            const kitchenTipAddition = boxOfficeTips * 0.04;  // 4% for kitchen
+            
+            // Update with base turnover values + box office additions
+            barTipsInput.value = (baseBarTips + barTipAddition).toFixed(2);
+            runnersTipsInput.value = (baseRunnersTips + runnersTipAddition).toFixed(2);
+            kitchenTipsInput.value = (baseKitchenTips + kitchenTipAddition).toFixed(2);
+        } else {
+            actualBoxOfficeInput.value = '0.00';
+            // If box office is cleared, reset to just turnover-based values
+            if (turnover > 0) {
+                runnersTipsInput.value = (turnover * 0.01).toFixed(2);
+                barTipsInput.value = (turnover * 0.01).toFixed(2);
+                kitchenTipsInput.value = (turnover * 0.005).toFixed(2);
+            } else {
+                runnersTipsInput.value = '0';
+                barTipsInput.value = '0';
+                kitchenTipsInput.value = '0';
+            }
+        }
+    }
+
+    // Attach event listeners to a row
+    function attachRowListeners(row) {
+        const turnoverInput = row.querySelector('.turnover-input');
+        const creditCardInput = row.querySelector('.creditcard-input');
+        const breakagesInput = row.querySelector('.breakages-input');
+        const boxOfficeTipsInput = row.querySelector('.box-office-tips-input');
+        const runnersTipsInput = row.querySelector('.runners-tips-input');
+        const barTipsInput = row.querySelector('.bar-tips-input');
+        const kitchenTipsInput = row.querySelector('.kitchen-tips-input');
+
+        turnoverInput.addEventListener('input', function() {
+            const turnover = parseFloat(turnoverInput.value) || 0;
+            
+            // Auto-fill breakages with 80 when turnover is entered
+            if (turnoverInput.value) {
+                breakagesInput.value = '80';
+            }
+            
+            // Calculate and auto-populate tip percentages from turnover
+            if (turnover > 0) {
+                // Base values from turnover percentages
+                const baseRunnersTips = turnover * 0.01;  // 1% of turnover
+                const baseBarTips = turnover * 0.01;  // 1% of turnover
+                const baseKitchenTips = turnover * 0.005;  // 0.5% of turnover
+                
+                // Check if box office tips exists and add those percentages
+                const boxOfficeTips = parseFloat(boxOfficeTipsInput.value) || 0;
+                let finalRunnersTips = baseRunnersTips;
+                let finalBarTips = baseBarTips;
+                let finalKitchenTips = baseKitchenTips;
+                
+                if (boxOfficeTips > 0) {
+                    // Add box office percentages on top of turnover-based values
+                    finalRunnersTips = baseRunnersTips + (boxOfficeTips * 0.08);  // 8% of box office
+                    finalBarTips = baseBarTips + (boxOfficeTips * 0.08);  // 8% of box office
+                    finalKitchenTips = baseKitchenTips + (boxOfficeTips * 0.04);  // 4% of box office
+                }
+                
+                // Set the final values
+                runnersTipsInput.value = finalRunnersTips.toFixed(2);
+                barTipsInput.value = finalBarTips.toFixed(2);
+                kitchenTipsInput.value = finalKitchenTips.toFixed(2);
+            } else {
+                // Clear values if turnover is empty or 0
+                runnersTipsInput.value = '0';
+                barTipsInput.value = '0';
+                kitchenTipsInput.value = '0';
+            }
+            
+            calculateTip(row);
+        });
+
+        creditCardInput.addEventListener('input', function() {
+            calculateTip(row);
+            calculateTotalCC(); // Update total CC when credit card amount changes
+        });
+
+        breakagesInput.addEventListener('input', function() {
+            calculateTip(row);
+        });
+
+        if (boxOfficeTipsInput) {
+            boxOfficeTipsInput.addEventListener('input', function() {
+                calculateActualBoxOffice(row);
+                calculateTip(row); // Recalculate tip after box office changes
+            });
+        }
+
+        runnersTipsInput.addEventListener('input', function() {
+            calculateTip(row);
+        });
+
+        barTipsInput.addEventListener('input', function() {
+            calculateTip(row);
+        });
+
+        kitchenTipsInput.addEventListener('input', function() {
+            calculateTip(row);
+        });
+
+        boxOfficeTipsInput.addEventListener('input', function() {
+            calculateActualBoxOffice(row);
+        });
+    }
+
+    // Attach listeners to existing rows
+    document.querySelectorAll('.cashup-row').forEach(row => {
+        attachRowListeners(row);
+    });
+
+    // Form submission - add date to each row
+    document.getElementById('cashupForm').addEventListener('submit', function(e) {
+        const date = entryDate.value;
+        if (!date) {
+            e.preventDefault();
+            alert('Please select a date');
+            return false;
+        }
+
+        // Add date field to each row
+        const rows = tbody.querySelectorAll('.cashup-row');
+        rows.forEach((row, index) => {
+            // Check if date input already exists
+            let dateInput = row.querySelector('input[name^="date_"]');
+            if (!dateInput) {
+                dateInput = document.createElement('input');
+                dateInput.type = 'hidden';
+                dateInput.name = `date_${index}`;
+                row.appendChild(dateInput);
+            }
+            dateInput.value = date;
+        });
+
+        // Validate all rows
+        let allValid = true;
+        rows.forEach((row, index) => {
+            const staffSelect = row.querySelector('.staff-select');
+            const turnoverInput = row.querySelector('.turnover-input');
+            const creditCardInput = row.querySelector('.creditcard-input');
+            const breakagesInput = row.querySelector('.breakages-input');
+            const runnersTipsInput = row.querySelector('.runners-tips-input');
+            const barTipsInput = row.querySelector('.bar-tips-input');
+            const kitchenTipsInput = row.querySelector('.kitchen-tips-input');
+
+            if (!staffSelect.value) {
+                staffSelect.classList.add('is-invalid');
+                allValid = false;
+            } else {
+                staffSelect.classList.remove('is-invalid');
+            }
+
+            // Auto-fill breakages and tip percentages if turnover is entered
+            if (turnoverInput.value) {
+                const turnover = parseFloat(turnoverInput.value) || 0;
+                breakagesInput.value = '80';
+                
+                if (turnover > 0) {
+                    // Runners Tips: 1% of turnover
+                    runnersTipsInput.value = (turnover * 0.01).toFixed(2);
+                    
+                    // Bar Tips: 1% of turnover
+                    barTipsInput.value = (turnover * 0.01).toFixed(2);
+                    
+                    // Kitchen Tips: 0.5% of turnover
+                    kitchenTipsInput.value = (turnover * 0.005).toFixed(2);
+                }
+            }
+
+            if (!calculateTip(row)) {
+                allValid = false;
+            }
+        });
+
+        if (!allValid) {
+            e.preventDefault();
+            alert('Please fix all errors before submitting');
+            return false;
+        }
+    });
+
+    // Initial update
+    updateRemoveButtons();
+    calculateTotalCC(); // Calculate initial total CC
+});
+</script>
+{% endblock %}
+
