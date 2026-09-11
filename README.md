@@ -6,7 +6,7 @@ A web-based application for capturing daily staff cash-ups, replacing manual Exc
 
 - **Staff Management**: Add and manage staff members with active/inactive status
 - **Cash-Up Entry**: Excel-style table interface for entering multiple cash-ups at once
-- **Automatic Tip Calculation**: Tips are automatically calculated as `Turnover - Credit Card Amount`
+- **Automatic Tip Calculation**: Gross tip = Credit Card − Turnover. Tip-outs from waiter tips: 5% CC commission, 15% combined runner/bar/kitchen pool; waiter keeps 80%.
 - **Real-time Validation**: Frontend and backend validation with error highlighting
 - **Cash-Up History**: View and filter historical cash-ups by date and staff member
 - **Responsive Design**: Bootstrap 5 styling with mobile-friendly interface
@@ -66,9 +66,18 @@ A web-based application for capturing daily staff cash-ups, replacing manual Exc
    - Select the staff member from the dropdown
    - Enter the turnover amount
    - Enter the credit card total
-   - The tip amount will be calculated automatically
+   - Tip amount, CC commission (5%), and combined tips (15%) calculate automatically from waiter tips
 4. Click **Add Row** to add more entries
 5. Click **Save Cash-Ups** to save all entries
+
+### Tip Rules
+
+- **Gross tip** = Credit Card − Turnover
+- **CC commission** = 5% of gross tip (shown in the CC Commission block)
+- **Combined tips** (runner / bar / kitchen) = 15% of gross tip into one shared pool
+- **Waiter tip** = remaining 80% of gross tip
+- Box office tips and breakages are no longer used
+- No per-person tip splitting — combined tips stay as one pool
 
 ### Viewing Cash-Up History
 
@@ -130,6 +139,27 @@ The application uses SQLite by default. The database file (`cashup.db`) will be 
 ## License
 
 This project is for internal use.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
