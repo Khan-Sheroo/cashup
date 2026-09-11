@@ -6,7 +6,7 @@ A web-based application for capturing daily staff cash-ups, replacing manual Exc
 
 - **Staff Management**: Add and manage staff members with active/inactive status
 - **Cash-Up Entry**: Excel-style table interface for entering multiple cash-ups at once
-- **Automatic Tip Calculation**: Gross tip = Credit Card − Turnover. Tip-outs from waiter tips: 5% CC commission, 15% combined runner/bar/kitchen pool; waiter keeps 80%.
+- **Automatic Tip Calculation**: Gross tip = Cash + Credit Card − Turnover. Tip-outs from waiter tips: 5% CC commission, 15% combined runner/bar/kitchen pool; waiter keeps 80%.
 - **Real-time Validation**: Frontend and backend validation with error highlighting
 - **Cash-Up History**: View and filter historical cash-ups by date and staff member
 - **Responsive Design**: Bootstrap 5 styling with mobile-friendly interface
@@ -72,10 +72,11 @@ A web-based application for capturing daily staff cash-ups, replacing manual Exc
 
 ### Tip Rules
 
-- **Gross tip** = Credit Card − Turnover
+- **Gross tip** = Cash + Credit Card − Turnover
 - **CC commission** = 5% of gross tip (shown in the CC Commission block)
 - **Combined tips** (runner / bar / kitchen) = 15% of gross tip into one shared pool
 - **Waiter tip** = remaining 80% of gross tip
+- Cash and credit card are both tenders against turnover
 - Box office tips and breakages are no longer used
 - No per-person tip splitting — combined tips stay as one pool
 

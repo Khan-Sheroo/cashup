@@ -36,6 +36,7 @@ class CashUp(db.Model):
     staff_id = db.Column(db.Integer, db.ForeignKey('staff.id'), nullable=False)
     date = db.Column(db.Date, nullable=False)
     turnover = db.Column(db.Numeric(10, 2), nullable=False)
+    cash_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     credit_card_total = db.Column(db.Numeric(10, 2), nullable=False)
     tip_amount = db.Column(db.Numeric(10, 2), nullable=False)
     cc_commission = db.Column(db.Numeric(10, 2), nullable=False, default=0)

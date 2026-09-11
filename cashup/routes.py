@@ -192,10 +192,12 @@ def persist_cashup_drafts(form):
         
         cashup_id_str = form.get(f'cashup_id_{i}', '')
         turnover_str = form.get(f'turnover_{i}', '0') or '0'
+        cash_str = form.get(f'cash_{i}', '0') or '0'
         credit_card_str = form.get(f'credit_card_{i}', '0') or '0'
         
         try:
             turnover = Decimal(turnover_str)
+            cash_total = Decimal(cash_str)
             credit_card = Decimal(credit_card_str)
         except (InvalidOperation, ValueError):
             errors.append(f'Row {i+1}: Invalid numeric values')
@@ -203,6 +205,10 @@ def persist_cashup_drafts(form):
         
         if turnover < 0:
             errors.append(f'Row {i+1}: Turnover cannot be negative')
+            continue
+        
+        if cash_total < 0:
+            errors.append(f'Row {i+1}: Cash cannot be negative')
             continue
         
         if credit_card < 0:
@@ -214,7 +220,8 @@ def persist_cashup_drafts(form):
             errors.append(f'Row {i+1}: Invalid staff member')
             continue
         
-        gross_tip = credit_card - turnover
+        # Gross tip = all tenders (cash + CC) against turnover
+        gross_tip = cash_total + credit_card - turnover
         if gross_tip > 0:
             cc_commission = (gross_tip * Decimal('0.05')).quantize(Decimal('0.01'))
             combined_tips = (gross_tip * Decimal('0.15')).quantize(Decimal('0.01'))
@@ -236,6 +243,7 @@ def persist_cashup_drafts(form):
             existing_cashup.staff_id = staff_id
             existing_cashup.date = entry_date_obj
             existing_cashup.turnover = turnover
+            existing_cashup.cash_total = cash_total
             existing_cashup.credit_card_total = credit_card
             existing_cashup.tip_amount = tip_amount
             existing_cashup.cc_commission = cc_commission
@@ -248,6 +256,7 @@ def persist_cashup_drafts(form):
                 staff_id=staff_id,
                 date=entry_date_obj,
                 turnover=turnover,
+                cash_total=cash_total,
                 credit_card_total=credit_card,
                 tip_amount=tip_amount,
                 cc_commission=cc_commission,
@@ -401,6 +410,7 @@ def new_cashup():
     
     # Calculate totals for submitted cashups (history)
     total_turnover = sum(float(c.turnover) for c in cashups)
+    total_cash = sum(float(c.cash_total) for c in cashups)
     total_credit_card = sum(float(c.credit_card_total) for c in cashups)
     total_tips = sum(float(c.tip_amount) for c in cashups)
     total_cc_commission = sum(float(c.cc_commission) for c in cashups)
@@ -408,6 +418,7 @@ def new_cashup():
     
     # Calculate totals for draft cashups
     draft_total_turnover = sum(float(c.turnover) for c in draft_cashups)
+    draft_total_cash = sum(float(c.cash_total) for c in draft_cashups)
     draft_total_credit_card = sum(float(c.credit_card_total) for c in draft_cashups)
     draft_total_tips = sum(float(c.tip_amount) for c in draft_cashups)
     draft_total_cc_commission = sum(float(c.cc_commission) for c in draft_cashups)
@@ -418,6 +429,7 @@ def new_cashup():
     
     # Total Turnover for the day (includes both submitted and draft cashups)
     day_total_turnover = total_turnover + draft_total_turnover
+    day_total_cash = total_cash + draft_total_cash
     
     # Day tip-out totals
     day_total_cc_commission = total_cc_commission + draft_total_cc_commission
@@ -437,17 +449,20 @@ def new_cashup():
                          filter_date=filter_date,
                          filter_staff_id=filter_staff_id,
                          total_turnover=total_turnover,
+                         total_cash=total_cash,
                          total_credit_card=total_credit_card,
                          total_tips=total_tips,
                          total_cc_commission=total_cc_commission,
                          total_combined_tips=total_combined_tips,
                          draft_total_turnover=draft_total_turnover,
+                         draft_total_cash=draft_total_cash,
                          draft_total_credit_card=draft_total_credit_card,
                          draft_total_tips=draft_total_tips,
                          draft_total_cc_commission=draft_total_cc_commission,
                          draft_total_combined_tips=draft_total_combined_tips,
                          day_total_cc=day_total_cc,
                          day_total_turnover=day_total_turnover,
+                         day_total_cash=day_total_cash,
                          day_total_cc_commission=day_total_cc_commission,
                          day_total_combined_tips=day_total_combined_tips,
                          card_machine_terminals=CARD_MACHINE_TERMINALS,
@@ -462,6 +477,49 @@ def autosave_cashup():
     result = persist_cashup_drafts(request.form)
     status = 200 if result['success'] else 400
     return jsonify(result), status
+
+
+@cashup_bp.route('/print')
+def print_cashup():
+    """Printable / PDF cash-up sheet for a selected date"""
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    date_str = request.args.get('date', yesterday)
+    
+    try:
+        sheet_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        sheet_date = date.today() - timedelta(days=1)
+    
+    rows = CashUp.query.join(Staff).filter(
+        CashUp.date == sheet_date
+    ).order_by(Staff.name).all()
+    
+    day_total_turnover = sum(float(c.turnover) for c in rows)
+    day_total_cash = sum(float(c.cash_total) for c in rows)
+    day_total_cc = sum(float(c.credit_card_total) for c in rows)
+    day_total_tips = sum(float(c.tip_amount) for c in rows)
+    day_total_cc_commission = sum(float(c.cc_commission) for c in rows)
+    day_total_combined_tips = sum(float(c.combined_tips) for c in rows)
+    
+    card_batches = CardMachineBatch.query.filter_by(date=sheet_date).all()
+    card_batch_dict = {batch.terminal_id: float(batch.batch_total) for batch in card_batches}
+    total_batches = sum(card_batch_dict.values())
+    
+    return render_template(
+        'cashup/print.html',
+        sheet_date=sheet_date,
+        printed_at=datetime.now(),
+        rows=rows,
+        day_total_turnover=day_total_turnover,
+        day_total_cash=day_total_cash,
+        day_total_cc=day_total_cc,
+        day_total_tips=day_total_tips,
+        day_total_cc_commission=day_total_cc_commission,
+        day_total_combined_tips=day_total_combined_tips,
+        card_machine_terminals=CARD_MACHINE_TERMINALS,
+        card_batch_dict=card_batch_dict,
+        total_batches=total_batches
+    )
 
 
 @cashup_bp.route('/submit', methods=['POST'])

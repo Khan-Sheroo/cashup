@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Cash-Up Sheet {{ sheet_date.strftime('%Y-%m-%d') }} - CashUp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sheet-toolbar {
+        margin-bottom: 1.5rem;
+    }
+    .print-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #dee2e6;
+    }
+    .print-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .print-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1.25rem;
+    }
+    .print-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .print-sheet table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    .print-sheet th,
+    .print-sheet td {
+        border: 1px solid #333;
+        padding: 0.35rem 0.5rem;
+        vertical-align: middle;
+    }
+    .print-sheet thead th {
+        background: #f1f1f1;
+        font-weight: 700;
+        text-align: center;
+    }
+    .print-sheet .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .print-sheet .name {
+        text-align: left;
+        font-weight: 600;
+    }
+    .print-sheet tfoot th,
+    .print-sheet tfoot td {
+        background: #f8f8f8;
+        font-weight: 700;
+    }
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .summary-item {
+        border: 1px solid #333;
+        padding: 0.5rem 0.65rem;
+    }
+    .summary-item .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #555;
+        margin-bottom: 0.15rem;
+    }
+    .summary-item .value {
+        font-size: 1.05rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    .batch-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 0.4rem;
+    }
+    .batch-item {
+        border: 1px solid #333;
+        padding: 0.4rem 0.5rem;
+        font-size: 0.85rem;
+    }
+    .batch-item .terminal {
+        font-weight: 600;
+    }
+    .badge-status {
+        display: inline-block;
+        font-size: 0.7rem;
+        padding: 0.1rem 0.35rem;
+        border: 1px solid #333;
+        margin-left: 0.35rem;
+        font-weight: 600;
+    }
+    @media print {
+        .navbar,
+        .sheet-toolbar,
+        .alert,
+        .btn,
+        .no-print {
+            display: none !important;
+        }
+        body {
+            background: #fff !important;
+        }
+        .container {
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .print-sheet {
+            border: none;
+            padding: 0;
+        }
+        .print-sheet th,
+        .print-sheet td,
+        .summary-item,
+        .batch-item {
+            border-color: #000;
+        }
+        @page {
+            size: A4 landscape;
+            margin: 12mm;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sheet-toolbar d-flex justify-content-between align-items-center flex-wrap gap-2 no-print">
+    <div>
+        <a href="{{ url_for('cashup.new_cashup', date=sheet_date.isoformat()) }}" class="btn btn-secondary">
+            Back to Cash-Up
+        </a>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+            Print / Save as PDF
+        </button>
+    </div>
+</div>
+
+<div class="print-sheet">
+    <h1>Daily Cash-Up Sheet</h1>
+    <div class="sheet-meta">
+        Date: <strong>{{ sheet_date.strftime('%A, %d %B %Y') }}</strong>
+        &nbsp;|&nbsp; Printed: {{ printed_at.strftime('%Y-%m-%d %H:%M') }}
+    </div>
+
+    <h2>Daily Summary</h2>
+    <div class="summary-grid">
+        <div class="summary-item">
+            <div class="label">Total Turnover</div>
+            <div class="value">R{{ "%.2f"|format(day_total_turnover) }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Total Cash</div>
+            <div class="value">R{{ "%.2f"|format(day_total_cash) }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Total CC</div>
+            <div class="value">R{{ "%.2f"|format(day_total_cc) }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Total Cash + CC</div>
+            <div class="value">R{{ "%.2f"|format(day_total_cash + day_total_cc) }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Total Batches</div>
+            <div class="value">R{{ "%.2f"|format(total_batches) }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">CC vs Batches</div>
+            <div class="value">R{{ "%.2f"|format(day_total_cc - total_batches) }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">CC Commission (5%)</div>
+            <div class="value">R{{ "%.2f"|format(day_total_cc_commission) }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Combined Tips (15%)</div>
+            <div class="value">R{{ "%.2f"|format(day_total_combined_tips) }}</div>
+        </div>
+    </div>
+
+    <h2>Card Machine Batches</h2>
+    <div class="batch-grid">
+        {% for terminal_id in card_machine_terminals %}
+        <div class="batch-item">
+            <div class="terminal">{{ terminal_id }}</div>
+            <div class="num">R{{ "%.2f"|format(card_batch_dict.get(terminal_id, 0)) }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <h2>Staff Cash-Ups</h2>
+    {% if rows %}
+    <table>
+        <thead>
+            <tr>
+                <th>Staff</th>
+                <th>Status</th>
+                <th>Turnover</th>
+                <th>Cash</th>
+                <th>Credit Card</th>
+                <th>Tip Amount</th>
+                <th>CC Commission</th>
+                <th>Combined Tips</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td class="name">{{ row.staff.name }}</td>
+                <td>{{ 'Submitted' if row.submitted else 'Draft' }}</td>
+                <td class="num">R{{ "%.2f"|format(row.turnover) }}</td>
+                <td class="num">R{{ "%.2f"|format(row.cash_total) }}</td>
+                <td class="num">R{{ "%.2f"|format(row.credit_card_total) }}</td>
+                <td class="num">R{{ "%.2f"|format(row.tip_amount) }}</td>
+                <td class="num">R{{ "%.2f"|format(row.cc_commission) }}</td>
+                <td class="num">R{{ "%.2f"|format(row.combined_tips) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="2">Totals</th>
+                <th class="num">R{{ "%.2f"|format(day_total_turnover) }}</th>
+                <th class="num">R{{ "%.2f"|format(day_total_cash) }}</th>
+                <th class="num">R{{ "%.2f"|format(day_total_cc) }}</th>
+                <th class="num">R{{ "%.2f"|format(day_total_tips) }}</th>
+                <th class="num">R{{ "%.2f"|format(day_total_cc_commission) }}</th>
+                <th class="num">R{{ "%.2f"|format(day_total_combined_tips) }}</th>
+            </tr>
+        </tfoot>
+    </table>
+    {% else %}
+    <p>No cash-up entries for this date.</p>
+    {% endif %}
+</div>
+{% endblock %}
