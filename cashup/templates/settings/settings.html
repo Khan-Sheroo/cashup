@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - CashUp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .work-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #333;
+    }
+    .work-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .work-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1rem;
+    }
+    .work-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .settings-field {
+        border: 1px solid #333;
+        padding: 0.75rem 0.85rem;
+        margin-bottom: 0.75rem;
+        background: #fff;
+    }
+    .settings-field .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #555;
+        margin-bottom: 0.35rem;
+        font-weight: 700;
+    }
+    .settings-field select,
+    .settings-field input[type="text"],
+    .settings-field input[type="number"] {
+        border: 1px solid #333;
+        border-radius: 0;
+        padding: 0.35rem 0.5rem;
+        background: #fff;
+        max-width: 100%;
+    }
+    .settings-field select:focus,
+    .settings-field input:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 1px #111;
+        background: #fffef5;
+    }
+    .basis-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .basis-options label {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .sheet-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        background: #fff;
+    }
+    .sheet-table th,
+    .sheet-table td {
+        border: 1px solid #333;
+        padding: 0.35rem 0.4rem;
+        vertical-align: middle;
+    }
+    .sheet-table thead th {
+        background: #f1f1f1;
+        font-weight: 700;
+        text-align: center;
+    }
+    .sheet-table .form-control,
+    .sheet-table .form-check-input {
+        border-radius: 0;
+    }
+    .sheet-table .form-control {
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        padding: 0.2rem 0.25rem;
+        min-height: auto;
+        font-size: 0.9rem;
+    }
+    .sheet-table .form-control:focus {
+        box-shadow: inset 0 0 0 1px #111;
+        background: #fffef5;
+    }
+    .sheet-table .pct-input {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        max-width: 6rem;
+    }
+    .sheet-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 2px solid #111;
+    }
+    .sheet-actions .btn,
+    .rule-tools .btn {
+        border-radius: 0;
+        border-width: 1px;
+    }
+    .rule-tools {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 0.75rem 0;
+        align-items: center;
+    }
+    .help-text {
+        color: #555;
+        font-size: 0.85rem;
+        margin: 0.25rem 0 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="POST" id="settingsForm">
+<div class="work-sheet">
+    <h1>Settings</h1>
+    <div class="sheet-meta">Currency, tip-out basis, and tip-out fields</div>
+
+    <h2>Currency</h2>
+    <div class="settings-field">
+        <div class="label">Display Currency</div>
+        <select name="currency" id="currency" required>
+            {% for code, meta in currencies.items() %}
+            <option value="{{ code }}" {% if settings.currency == code %}selected{% endif %}>
+                {{ meta.name }} ({{ meta.symbol.strip() }})
+            </option>
+            {% endfor %}
+        </select>
+        <p class="help-text">Used on cash-up, tips, and print sheets.</p>
+    </div>
+
+    <h2>Tip-Out Basis</h2>
+    <div class="settings-field">
+        <div class="label">Calculate Tip-Outs From</div>
+        <div class="basis-options">
+            {% for value, label in tip_out_basis_choices %}
+            <label>
+                <input type="radio" name="tip_out_basis" value="{{ value }}"
+                       {% if settings.tip_out_basis == value %}checked{% endif %}>
+                {{ label }}
+            </label>
+            {% endfor %}
+        </div>
+        <p class="help-text">
+            From tips uses cash + CC − (turnover − credit sale). From turnover uses net turnover after credit sale.
+        </p>
+    </div>
+
+    <h2>Tip-Out Rules</h2>
+    <p class="help-text mb-2">
+        Enable pool tips and add fields such as runners, kitchen, or bar. Percentages apply to the tip-out basis above.
+    </p>
+
+    <div class="table-responsive">
+        <table class="sheet-table" id="tipRulesTable">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">On</th>
+                    <th style="width: 42%;">Field</th>
+                    <th style="width: 20%;">Percent</th>
+                    <th style="width: 30%;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tipRulesBody">
+                {% for rule in settings.tip_rules %}
+                <tr class="tip-rule-row" data-index="{{ loop.index0 }}">
+                    <td class="text-center">
+                        <input type="hidden" name="rule_key" value="{{ rule.key }}">
+                        <input class="form-check-input" type="checkbox" name="rule_enabled"
+                               value="{{ rule.key }}" {% if rule.enabled %}checked{% endif %}>
+                    </td>
+                    <td>
+                        <input type="text" class="form-control form-control-sm" name="rule_label"
+                               value="{{ rule.label }}" required>
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm pct-input" name="rule_percent"
+                               value="{{ rule.percent }}" min="0" max="100" step="0.01" required>
+                    </td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-dark remove-rule">Remove</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="rule-tools">
+        <select id="presetSelect" class="form-select form-select-sm" style="width: auto; border-radius: 0; border-color: #333;">
+            <option value="">Add field…</option>
+            {% for preset in tip_out_presets %}
+            <option value="{{ preset.key }}" data-label="{{ preset.label }}" data-percent="{{ preset.percent }}">
+                {{ preset.label }} ({{ preset.percent }}%)
+            </option>
+            {% endfor %}
+            <option value="custom" data-label="Custom" data-percent="5">Custom field</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-dark" id="addRuleBtn">Add</button>
+    </div>
+
+    <div class="sheet-actions">
+        <button type="submit" class="btn btn-dark">Save Settings</button>
+        <a href="{{ url_for('cashup.new_cashup') }}" class="btn btn-outline-dark">Back to Cash-Up</a>
+    </div>
+</div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tbody = document.getElementById('tipRulesBody');
+    const presetSelect = document.getElementById('presetSelect');
+    const addRuleBtn = document.getElementById('addRuleBtn');
+
+    function slugify(text) {
+        return String(text || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '') || 'tip_out';
+    }
+
+    function existingKeys() {
+        return new Set(
+            Array.from(tbody.querySelectorAll('input[name="rule_key"]')).map((el) => el.value)
+        );
+    }
+
+    function uniqueKey(base) {
+        const used = existingKeys();
+        let key = slugify(base);
+        let n = 2;
+        while (used.has(key)) {
+            key = `${slugify(base)}_${n}`;
+            n += 1;
+        }
+        return key;
+    }
+
+    function addRule(label, percent, keyHint) {
+        const key = uniqueKey(keyHint || label);
+        const index = tbody.querySelectorAll('.tip-rule-row').length;
+        const tr = document.createElement('tr');
+        tr.className = 'tip-rule-row';
+        tr.dataset.index = String(index);
+        tr.innerHTML = `
+            <td class="text-center">
+                <input type="hidden" name="rule_key" value="${key}">
+                <input class="form-check-input" type="checkbox" name="rule_enabled" value="${key}" checked>
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm" name="rule_label" value="${label}" required>
+            </td>
+            <td>
+                <input type="number" class="form-control form-control-sm pct-input" name="rule_percent"
+                       value="${Number(percent).toFixed(2)}" min="0" max="100" step="0.01" required>
+            </td>
+            <td>
+                <button type="button" class="btn btn-sm btn-outline-dark remove-rule">Remove</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        const labelInput = tr.querySelector('input[name="rule_label"]');
+        if (labelInput && keyHint === 'custom') {
+            labelInput.value = '';
+            labelInput.focus();
+        }
+    }
+
+    addRuleBtn.addEventListener('click', function() {
+        const option = presetSelect.options[presetSelect.selectedIndex];
+        if (!option || !option.value) {
+            addRule('Custom', 5, 'custom');
+            return;
+        }
+        addRule(
+            option.dataset.label || option.text,
+            option.dataset.percent || 5,
+            option.value === 'custom' ? 'custom' : option.value
+        );
+        presetSelect.value = '';
+    });
+
+    tbody.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-rule')) {
+            const rows = tbody.querySelectorAll('.tip-rule-row');
+            if (rows.length <= 1) {
+                alert('Keep at least one tip-out field (you can turn it off).');
+                return;
+            }
+            e.target.closest('tr').remove();
+        }
+    });
+
+    // Keep checkbox value synced if label/key changes for new custom rows
+    tbody.addEventListener('change', function(e) {
+        if (e.target && e.target.name === 'rule_label') {
+            const row = e.target.closest('tr');
+            const keyInput = row.querySelector('input[name="rule_key"]');
+            const enabled = row.querySelector('input[name="rule_enabled"]');
+            // Only auto-update key for brand-new custom-style rows without reserved keys
+            const reserved = new Set(['cc_commission', 'pool', 'runners', 'kitchen', 'bar']);
+            if (keyInput && enabled && !reserved.has(keyInput.value)) {
+                const used = existingKeys();
+                used.delete(keyInput.value);
+                let next = slugify(e.target.value);
+                let n = 2;
+                while (used.has(next)) {
+                    next = `${slugify(e.target.value)}_${n}`;
+                    n += 1;
+                }
+                keyInput.value = next;
+                enabled.value = next;
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

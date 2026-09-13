@@ -55,10 +55,10 @@
                     <tr>
                         <td>{{ cashup.date.strftime('%Y-%m-%d') }}</td>
                         <td>{{ cashup.staff.name }}</td>
-                        <td class="text-end">R{{ "%.2f"|format(cashup.turnover) }}</td>
-                        <td class="text-end">R{{ "%.2f"|format(cashup.credit_card_total) }}</td>
+                        <td class="text-end">{{ cashup.turnover|money }}</td>
+                        <td class="text-end">{{ cashup.credit_card_total|money }}</td>
                         <td class="text-end {% if cashup.tip_amount < 0 %}text-danger fw-bold{% endif %}">
-                            R{{ "%.2f"|format(cashup.tip_amount) }}
+                            {{ cashup.tip_amount|money }}
                         </td>
                         <td>{{ cashup.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                     </tr>
@@ -67,9 +67,9 @@
                 <tfoot class="table-light">
                     <tr>
                         <th colspan="2">Total</th>
-                        <th class="text-end">R{{ "%.2f"|format(total_turnover) }}</th>
-                        <th class="text-end">R{{ "%.2f"|format(total_credit_card) }}</th>
-                        <th class="text-end">R{{ "%.2f"|format(total_tips) }}</th>
+                        <th class="text-end">{{ total_turnover|money }}</th>
+                        <th class="text-end">{{ total_credit_card|money }}</th>
+                        <th class="text-end">{{ total_tips|money }}</th>
                         <th></th>
                     </tr>
                 </tfoot>

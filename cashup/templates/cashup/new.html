@@ -72,6 +72,38 @@
         box-shadow: none;
         border-radius: 0;
     }
+    .money-input {
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+        width: 100%;
+    }
+    .money-input .currency-prefix {
+        flex-shrink: 0;
+        color: #555;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+    .money-input input {
+        flex: 1;
+        min-width: 0;
+    }
+    .batch-item .money-input input {
+        border: none;
+        border-bottom: 1px solid #999;
+        border-radius: 0;
+        background: transparent;
+        padding: 0.15rem 0;
+        width: 100%;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        box-shadow: none;
+    }
+    .batch-item .money-input input:focus {
+        outline: none;
+        border-bottom-color: #111;
+        box-shadow: none;
+    }
     .summary-item input.sheet-value:focus {
         outline: none;
         box-shadow: none;
@@ -93,22 +125,6 @@
     .batch-item .terminal {
         font-weight: 600;
         margin-bottom: 0.2rem;
-    }
-    .batch-item input {
-        border: none;
-        border-bottom: 1px solid #999;
-        border-radius: 0;
-        background: transparent;
-        padding: 0.15rem 0;
-        width: 100%;
-        font-variant-numeric: tabular-nums;
-        text-align: right;
-        box-shadow: none;
-    }
-    .batch-item input:focus {
-        outline: none;
-        border-bottom-color: #111;
-        box-shadow: none;
     }
     .sheet-table {
         width: 100%;
@@ -149,16 +165,17 @@
         box-shadow: inset 0 0 0 1px #111;
         background: #fffef5;
     }
+    .sheet-table .money-input .form-control {
+        padding-left: 0;
+    }
     .sheet-table .numeric-input,
     .sheet-table .tip-amount,
-    .sheet-table .cc-commission,
-    .sheet-table .combined-tips {
+    .sheet-table .tip-out-amount {
         text-align: right;
         font-variant-numeric: tabular-nums;
     }
     .sheet-table .tip-amount,
-    .sheet-table .cc-commission,
-    .sheet-table .combined-tips {
+    .sheet-table .tip-out-amount {
         background: #f8f8f8;
         font-weight: 600;
     }
@@ -190,6 +207,15 @@
 {% endblock %}
 
 {% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div></div>
+    <form method="POST" action="{{ url_for('cashup.clear_all_cashups') }}"
+          onsubmit="return confirm('Clear ALL cash-ups, tips, and card batches? Staff and settings will be kept. This cannot be undone.');">
+        <button type="submit" class="btn btn-outline-danger" style="border-radius: 0;">
+            Clear All Figures (Testing)
+        </button>
+    </form>
+</div>
 <form method="POST" id="cashupForm">
 <div class="work-sheet">
     <h1>Daily Cash-Up Sheet</h1>
@@ -205,37 +231,47 @@
     <div class="summary-grid">
         <div class="summary-item">
             <div class="label">Total Turnover</div>
-            <input type="text" class="sheet-value" id="field_2" name="field_2" readonly value="{{ "%.2f"|format(day_total_turnover) }}" data-saved-turnover="{{ "%.2f"|format(total_turnover) }}">
+            <input type="text" class="sheet-value" id="field_2" name="field_2" readonly value="{{ day_total_turnover|money }}" data-saved-turnover="{{ "%.2f"|format(total_turnover) }}">
+        </div>
+        <div class="summary-item">
+            <div class="label">Total Credit Sale</div>
+            <input type="text" class="sheet-value" id="total_credit_sale" name="total_credit_sale" readonly value="{{ day_total_credit_sale|money }}" data-saved-credit-sale="{{ "%.2f"|format(total_credit_sale) }}">
+        </div>
+        <div class="summary-item">
+            <div class="label">Net Turnover</div>
+            <input type="text" class="sheet-value" id="total_net_turnover" name="total_net_turnover" readonly value="{{ day_total_net_turnover|money }}">
         </div>
         <div class="summary-item">
             <div class="label">Total Cash</div>
-            <input type="text" class="sheet-value" id="total_cash" name="total_cash" readonly value="{{ "%.2f"|format(day_total_cash) }}" data-saved-cash="{{ "%.2f"|format(total_cash) }}">
+            <input type="text" class="sheet-value" id="total_cash" name="total_cash" readonly value="{{ day_total_cash|money }}" data-saved-cash="{{ "%.2f"|format(total_cash) }}">
         </div>
         <div class="summary-item">
             <div class="label">Total CC</div>
-            <input type="text" class="sheet-value" id="total_cc" name="total_cc" readonly value="{{ "%.2f"|format(day_total_cc) }}" data-saved-total="{{ "%.2f"|format(total_credit_card) }}">
+            <input type="text" class="sheet-value" id="total_cc" name="total_cc" readonly value="{{ day_total_cc|money }}" data-saved-total="{{ "%.2f"|format(total_credit_card) }}">
         </div>
         <div class="summary-item">
             <div class="label">Total Cash + CC</div>
-            <input type="text" class="sheet-value" id="total_tenders" name="total_tenders" readonly value="{{ "%.2f"|format(day_total_cash + day_total_cc) }}">
+            <input type="text" class="sheet-value" id="total_tenders" name="total_tenders" readonly value="{{ (day_total_cash + day_total_cc)|money }}">
         </div>
         <div class="summary-item">
             <div class="label">Total Batches</div>
-            <input type="text" class="sheet-value" id="total_batches" name="total_batches" readonly value="{{ "%.2f"|format(total_batches_calculated) }}">
+            <input type="text" class="sheet-value" id="total_batches" name="total_batches" readonly value="{{ total_batches_calculated|money }}">
         </div>
         <div class="summary-item" id="cc_vs_batches_wrap">
             <div class="label">CC vs Batches</div>
             {% set cc_vs_batches_diff = day_total_cc - total_batches_calculated %}
-            <input type="text" class="sheet-value" id="cc_vs_batches" name="cc_vs_batches" readonly value="{{ "%.2f"|format(cc_vs_batches_diff) }}">
+            <input type="text" class="sheet-value" id="cc_vs_batches" name="cc_vs_batches" readonly value="{{ cc_vs_batches_diff|money }}">
         </div>
+        {% for rule in tip_rules %}
         <div class="summary-item">
-            <div class="label">CC Commission (5%)</div>
-            <input type="text" class="sheet-value" id="total_cc_commission" name="total_cc_commission" readonly value="{{ "%.2f"|format(day_total_cc_commission) }}" data-saved-cc-commission="{{ "%.2f"|format(total_cc_commission) }}">
+            <div class="label">{{ rule.label }} ({{ rule.percent }}%)</div>
+            <input type="text" class="sheet-value tip-out-total" id="total_tip_out_{{ rule.key }}"
+                   data-tip-key="{{ rule.key }}"
+                   readonly
+                   value="{{ day_tip_outs.get(rule.key, 0)|money }}"
+                   data-saved-amount="{{ "%.2f"|format(total_tip_outs.get(rule.key, 0)) }}">
         </div>
-        <div class="summary-item">
-            <div class="label">Combined Tips (15%)</div>
-            <input type="text" class="sheet-value" id="total_combined_tips" name="total_combined_tips" readonly value="{{ "%.2f"|format(day_total_combined_tips) }}" data-saved-combined-tips="{{ "%.2f"|format(total_combined_tips) }}">
-        </div>
+        {% endfor %}
     </div>
 
     <h2>Card Machine Batches</h2>
@@ -243,13 +279,16 @@
         {% for terminal_id in card_machine_terminals %}
         <div class="batch-item">
             <div class="terminal">{{ terminal_id }}</div>
-            <input type="number"
-                   class="card-machine-input"
-                   id="card_machine_{{ terminal_id }}"
-                   name="card_machine_{{ terminal_id }}"
-                   step="0.01"
-                   min="0"
-                   value="{{ "%.2f"|format(card_batch_dict.get(terminal_id, 0)) }}">
+            <div class="money-input">
+                <span class="currency-prefix">{{ currency_symbol }}</span>
+                <input type="number"
+                       class="card-machine-input"
+                       id="card_machine_{{ terminal_id }}"
+                       name="card_machine_{{ terminal_id }}"
+                       step="0.01"
+                       min="0"
+                       value="{{ "%.2f"|format(card_batch_dict.get(terminal_id, 0)) }}">
+            </div>
         </div>
         {% endfor %}
     </div>
@@ -259,22 +298,26 @@
         <table class="sheet-table" id="cashupTable">
             <thead>
                 <tr>
-                    <th style="width: 16%;">Staff</th>
-                    <th style="width: 12%;">Turnover</th>
-                    <th style="width: 12%;">Cash</th>
-                    <th style="width: 12%;">Credit Card</th>
-                    <th style="width: 12%;">Tip Amount</th>
-                    <th style="width: 12%;">CC Commission</th>
-                    <th style="width: 14%;">Combined Tips</th>
-                    <th style="width: 10%;">Actions</th>
+                    <th style="width: 14%;">Staff</th>
+                    <th>Turnover</th>
+                    <th>Cash</th>
+                    <th>Credit Card</th>
+                    <th>Credit Sale</th>
+                    <th>Tip Amount</th>
+                    {% for rule in tip_rules %}
+                    <th>{{ rule.label }}</th>
+                    {% endfor %}
+                    <th style="width: 8%;">Actions</th>
                 </tr>
             </thead>
             <tbody id="cashupRows">
                 {% if draft_cashups %}
                     {% for cashup in draft_cashups %}
+                    {% set row_i = loop.index0 %}
+                    {% set outs = cashup.get_tip_outs() %}
                     <tr class="cashup-row">
                         <td>
-                            <input type="hidden" name="cashup_id_{{ loop.index0 }}" value="{{ cashup.id }}">
+                            <input type="hidden" name="cashup_id_{{ row_i }}" value="{{ cashup.id }}">
                             <select class="form-select form-select-sm staff-select" name="staff_id" required>
                                 <option value="">Select staff...</option>
                                 {% for staff in staff_list %}
@@ -284,23 +327,37 @@
                             </select>
                         </td>
                         <td>
-                            <input type="number" class="form-control form-control-sm numeric-input turnover-input" name="turnover_{{ loop.index0 }}" step="0.01" min="0" required value="{{ "%.2f"|format(cashup.turnover) }}">
+                            <div class="money-input">
+                                <span class="currency-prefix">{{ currency_symbol }}</span>
+                                <input type="number" class="form-control form-control-sm numeric-input turnover-input" name="turnover_{{ row_i }}" step="0.01" min="0" required value="{{ "%.2f"|format(cashup.turnover) }}">
+                            </div>
                         </td>
                         <td>
-                            <input type="number" class="form-control form-control-sm numeric-input cash-input" name="cash_{{ loop.index0 }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.cash_total) }}">
+                            <div class="money-input">
+                                <span class="currency-prefix">{{ currency_symbol }}</span>
+                                <input type="number" class="form-control form-control-sm numeric-input cash-input" name="cash_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.cash_total) }}">
+                            </div>
                         </td>
                         <td>
-                            <input type="number" class="form-control form-control-sm numeric-input creditcard-input" name="credit_card_{{ loop.index0 }}" step="0.01" min="0" required value="{{ "%.2f"|format(cashup.credit_card_total) }}">
+                            <div class="money-input">
+                                <span class="currency-prefix">{{ currency_symbol }}</span>
+                                <input type="number" class="form-control form-control-sm numeric-input creditcard-input" name="credit_card_{{ row_i }}" step="0.01" min="0" required value="{{ "%.2f"|format(cashup.credit_card_total) }}">
+                            </div>
                         </td>
                         <td>
-                            <input type="text" class="form-control form-control-sm tip-amount" name="tip_{{ loop.index0 }}" readonly value="{{ "%.2f"|format(cashup.tip_amount) }}">
+                            <div class="money-input">
+                                <span class="currency-prefix">{{ currency_symbol }}</span>
+                                <input type="number" class="form-control form-control-sm numeric-input creditsale-input" name="credit_sale_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.credit_sale or 0) }}">
+                            </div>
                         </td>
                         <td>
-                            <input type="text" class="form-control form-control-sm cc-commission" name="cc_commission_{{ loop.index0 }}" readonly value="{{ "%.2f"|format(cashup.cc_commission) }}">
+                            <input type="text" class="form-control form-control-sm tip-amount" name="tip_{{ row_i }}" readonly value="{{ cashup.tip_amount|money }}">
                         </td>
+                        {% for rule in tip_rules %}
                         <td>
-                            <input type="text" class="form-control form-control-sm combined-tips" name="combined_tips_{{ loop.index0 }}" readonly value="{{ "%.2f"|format(cashup.combined_tips) }}">
+                            <input type="text" class="form-control form-control-sm tip-out-amount" data-tip-key="{{ rule.key }}" name="tip_out_{{ rule.key }}_{{ row_i }}" readonly value="{{ outs.get(rule.key, 0)|money }}">
                         </td>
+                        {% endfor %}
                         <td>
                             <button type="button" class="btn btn-sm btn-outline-dark remove-row">Remove</button>
                         </td>
@@ -318,23 +375,37 @@
                         </select>
                     </td>
                     <td>
-                        <input type="number" class="form-control form-control-sm numeric-input turnover-input" name="turnover_0" step="0.01" min="0" required>
+                        <div class="money-input">
+                            <span class="currency-prefix">{{ currency_symbol }}</span>
+                            <input type="number" class="form-control form-control-sm numeric-input turnover-input" name="turnover_0" step="0.01" min="0" required>
+                        </div>
                     </td>
                     <td>
-                        <input type="number" class="form-control form-control-sm numeric-input cash-input" name="cash_0" step="0.01" min="0" value="0">
+                        <div class="money-input">
+                            <span class="currency-prefix">{{ currency_symbol }}</span>
+                            <input type="number" class="form-control form-control-sm numeric-input cash-input" name="cash_0" step="0.01" min="0" value="0">
+                        </div>
                     </td>
                     <td>
-                        <input type="number" class="form-control form-control-sm numeric-input creditcard-input" name="credit_card_0" step="0.01" min="0" required>
+                        <div class="money-input">
+                            <span class="currency-prefix">{{ currency_symbol }}</span>
+                            <input type="number" class="form-control form-control-sm numeric-input creditcard-input" name="credit_card_0" step="0.01" min="0" required>
+                        </div>
                     </td>
                     <td>
-                        <input type="text" class="form-control form-control-sm tip-amount" name="tip_0" readonly value="0.00">
+                        <div class="money-input">
+                            <span class="currency-prefix">{{ currency_symbol }}</span>
+                            <input type="number" class="form-control form-control-sm numeric-input creditsale-input" name="credit_sale_0" step="0.01" min="0" value="0">
+                        </div>
                     </td>
                     <td>
-                        <input type="text" class="form-control form-control-sm cc-commission" name="cc_commission_0" readonly value="0.00">
+                        <input type="text" class="form-control form-control-sm tip-amount" name="tip_0" readonly value="{{ 0|money }}">
                     </td>
+                    {% for rule in tip_rules %}
                     <td>
-                        <input type="text" class="form-control form-control-sm combined-tips" name="combined_tips_0" readonly value="0.00">
+                        <input type="text" class="form-control form-control-sm tip-out-amount" data-tip-key="{{ rule.key }}" name="tip_out_{{ rule.key }}_0" readonly value="{{ 0|money }}">
                     </td>
+                    {% endfor %}
                     <td>
                         <button type="button" class="btn btn-sm btn-outline-dark remove-row" disabled>Remove</button>
                     </td>
@@ -346,21 +417,18 @@
 
     <div class="sheet-actions">
         <button type="button" class="btn btn-outline-dark" id="addRowBtn">Add Row</button>
-        <button type="submit" class="btn btn-dark">Save Cashup</button>
-        {% if has_drafts %}
-        <button type="submit" class="btn btn-dark" form="submitCashupForm">Submit Cashup</button>
-        {% endif %}
+        <button type="submit" class="btn btn-dark" name="action" value="save">Save Draft</button>
+        <button type="submit" class="btn btn-dark" name="action" value="submit"
+                formaction="{{ url_for('cashup.submit_cashup') }}" id="submitCashupBtn">Submit Cashup</button>
         <a href="{{ url_for('cashup.print_cashup', date=filter_date) }}" class="btn btn-outline-dark" id="printSheetBtn" target="_blank">Print / Save PDF</a>
+        <a href="{{ url_for('cashup.waiter_slips') }}" class="btn btn-outline-dark" target="_blank">Waiter Slips (4×A6)</a>
     </div>
 </div>
 </form>
 
 {% if has_drafts %}
-<form method="POST" action="{{ url_for('cashup.submit_cashup') }}" id="submitCashupForm">
-    <input type="hidden" name="date" id="submit_date" value="">
-</form>
 <div class="alert alert-info mt-3">
-    <strong>Note:</strong> Draft cash-ups are loaded above. Edit as needed, then Save or Submit.
+    <strong>Note:</strong> Draft cash-ups are loaded above. Save Draft keeps them editable. Submit finalizes and replaces any previous submission for this date.
 </div>
 {% endif %}
 
@@ -422,23 +490,28 @@
                     <th>Turnover</th>
                     <th>Cash</th>
                     <th>Credit Card</th>
+                    <th>Credit Sale</th>
                     <th>Tip Amount</th>
-                    <th>CC Commission</th>
-                    <th>Combined Tips</th>
+                    {% for rule in tip_rules %}
+                    <th>{{ rule.label }}</th>
+                    {% endfor %}
                     <th>Submitted At</th>
                 </tr>
             </thead>
             <tbody>
                 {% for cashup in cashups %}
+                {% set outs = cashup.get_tip_outs() %}
                 <tr>
                     <td>{{ cashup.date.strftime('%Y-%m-%d') }}</td>
                     <td class="fw-bold">{{ cashup.staff.name }}</td>
-                    <td class="text-end">R{{ "%.2f"|format(cashup.turnover) }}</td>
-                    <td class="text-end">R{{ "%.2f"|format(cashup.cash_total) }}</td>
-                    <td class="text-end">R{{ "%.2f"|format(cashup.credit_card_total) }}</td>
-                    <td class="text-end {% if cashup.tip_amount < 0 %}text-danger fw-bold{% endif %}">R{{ "%.2f"|format(cashup.tip_amount) }}</td>
-                    <td class="text-end">R{{ "%.2f"|format(cashup.cc_commission) }}</td>
-                    <td class="text-end">R{{ "%.2f"|format(cashup.combined_tips) }}</td>
+                    <td class="text-end">{{ cashup.turnover|money }}</td>
+                    <td class="text-end">{{ cashup.cash_total|money }}</td>
+                    <td class="text-end">{{ cashup.credit_card_total|money }}</td>
+                    <td class="text-end">{{ (cashup.credit_sale or 0)|money }}</td>
+                    <td class="text-end {% if cashup.tip_amount < 0 %}text-danger fw-bold{% endif %}">{{ cashup.tip_amount|money }}</td>
+                    {% for rule in tip_rules %}
+                    <td class="text-end">{{ outs.get(rule.key, 0)|money }}</td>
+                    {% endfor %}
                     <td>{{ cashup.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                 </tr>
                 {% endfor %}
@@ -446,12 +519,14 @@
             <tfoot>
                 <tr>
                     <th colspan="2">Totals</th>
-                    <th>R{{ "%.2f"|format(total_turnover) }}</th>
-                    <th>R{{ "%.2f"|format(total_cash) }}</th>
-                    <th>R{{ "%.2f"|format(total_credit_card) }}</th>
-                    <th>R{{ "%.2f"|format(total_tips) }}</th>
-                    <th>R{{ "%.2f"|format(total_cc_commission) }}</th>
-                    <th>R{{ "%.2f"|format(total_combined_tips) }}</th>
+                    <th>{{ total_turnover|money }}</th>
+                    <th>{{ total_cash|money }}</th>
+                    <th>{{ total_credit_card|money }}</th>
+                    <th>{{ total_credit_sale|money }}</th>
+                    <th>{{ total_tips|money }}</th>
+                    {% for rule in tip_rules %}
+                    <th>{{ total_tip_outs.get(rule.key, 0)|money }}</th>
+                    {% endfor %}
                     <th></th>
                 </tr>
             </tfoot>
@@ -465,6 +540,25 @@
 
 {% block extra_js %}
 <script>
+const TIP_SETTINGS = {{ tip_settings_json|safe }};
+
+function formatMoney(value) {
+    const amount = Number(value);
+    const n = Number.isFinite(amount) ? amount : 0;
+    const symbol = TIP_SETTINGS.currency_symbol || '';
+    if (n < 0) {
+        return `-${symbol}${Math.abs(n).toFixed(2)}`;
+    }
+    return `${symbol}${n.toFixed(2)}`;
+}
+
+function parseMoney(value) {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    const cleaned = String(value == null ? '' : value).replace(/[^0-9.-]/g, '');
+    const n = parseFloat(cleaned);
+    return Number.isFinite(n) ? n : 0;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const table = document.getElementById('cashupTable');
     const tbody = document.getElementById('cashupRows');
@@ -595,6 +689,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     addRowBtn.addEventListener('click', function() {
+        const tipOutCells = (TIP_SETTINGS.tip_rules || []).map((rule) => `
+            <td>
+                <input type="text"
+                       class="form-control form-control-sm tip-out-amount"
+                       data-tip-key="${rule.key}"
+                       name="tip_out_${rule.key}_${rowCount}"
+                       readonly
+                       value="${formatMoney(0)}">
+            </td>
+        `).join('');
+
         const newRow = document.createElement('tr');
         newRow.className = 'cashup-row';
         newRow.innerHTML = `
@@ -606,50 +711,57 @@ document.addEventListener('DOMContentLoaded', function() {
                 </select>
             </td>
             <td>
-                <input type="number" 
-                       class="form-control form-control-sm numeric-input turnover-input" 
-                       name="turnover_${rowCount}" 
-                       step="0.01" 
-                       min="0" 
-                       required>
+                <div class="money-input">
+                    <span class="currency-prefix">${TIP_SETTINGS.currency_symbol || ''}</span>
+                    <input type="number" 
+                           class="form-control form-control-sm numeric-input turnover-input" 
+                           name="turnover_${rowCount}" 
+                           step="0.01" 
+                           min="0" 
+                           required>
+                </div>
             </td>
             <td>
-                <input type="number" 
-                       class="form-control form-control-sm numeric-input cash-input" 
-                       name="cash_${rowCount}" 
-                       step="0.01" 
-                       min="0" 
-                       value="0">
+                <div class="money-input">
+                    <span class="currency-prefix">${TIP_SETTINGS.currency_symbol || ''}</span>
+                    <input type="number" 
+                           class="form-control form-control-sm numeric-input cash-input" 
+                           name="cash_${rowCount}" 
+                           step="0.01" 
+                           min="0" 
+                           value="0">
+                </div>
             </td>
             <td>
-                <input type="number" 
-                       class="form-control form-control-sm numeric-input creditcard-input" 
-                       name="credit_card_${rowCount}" 
-                       step="0.01" 
-                       min="0" 
-                       required>
+                <div class="money-input">
+                    <span class="currency-prefix">${TIP_SETTINGS.currency_symbol || ''}</span>
+                    <input type="number" 
+                           class="form-control form-control-sm numeric-input creditcard-input" 
+                           name="credit_card_${rowCount}" 
+                           step="0.01" 
+                           min="0" 
+                           required>
+                </div>
+            </td>
+            <td>
+                <div class="money-input">
+                    <span class="currency-prefix">${TIP_SETTINGS.currency_symbol || ''}</span>
+                    <input type="number" 
+                           class="form-control form-control-sm numeric-input creditsale-input" 
+                           name="credit_sale_${rowCount}" 
+                           step="0.01" 
+                           min="0" 
+                           value="0">
+                </div>
             </td>
             <td>
                 <input type="text" 
                        class="form-control form-control-sm tip-amount" 
                        name="tip_${rowCount}" 
                        readonly 
-                       value="0.00">
+                       value="${formatMoney(0)}">
             </td>
-            <td>
-                <input type="text" 
-                       class="form-control form-control-sm cc-commission" 
-                       name="cc_commission_${rowCount}" 
-                       readonly 
-                       value="0.00">
-            </td>
-            <td>
-                <input type="text" 
-                       class="form-control form-control-sm combined-tips" 
-                       name="combined_tips_${rowCount}" 
-                       readonly 
-                       value="0.00">
-            </td>
+            ${tipOutCells}
             <td>
                 <button type="button" class="btn btn-sm btn-outline-dark remove-row">Remove</button>
             </td>
@@ -661,6 +773,7 @@ document.addEventListener('DOMContentLoaded', function() {
         calculateTotalCC();
         calculateTotalTurnover();
         calculateTotalCash();
+        calculateTotalCreditSale();
         calculateTotalTipOuts();
         scheduleAutosave();
     });
@@ -674,6 +787,7 @@ document.addEventListener('DOMContentLoaded', function() {
             calculateTotalCC();
             calculateTotalTurnover();
             calculateTotalCash();
+            calculateTotalCreditSale();
             calculateTotalTipOuts();
             scheduleAutosave();
         }
@@ -701,7 +815,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalCC = savedTotalCC + formTotalCC;
         
         if (totalCCInput) {
-            totalCCInput.value = totalCC.toFixed(2);
+            totalCCInput.value = formatMoney(totalCC);
         }
         
         calculateCCVsBatches();
@@ -718,21 +832,21 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const totalBatchesInput = document.getElementById('total_batches');
         if (totalBatchesInput) {
-            totalBatchesInput.value = totalBatches.toFixed(2);
+            totalBatchesInput.value = formatMoney(totalBatches);
         }
         
         calculateCCVsBatches();
     }
     
     function calculateCCVsBatches() {
-        const totalCC = parseFloat(document.getElementById('total_cc').value) || 0;
-        const totalBatches = parseFloat(document.getElementById('total_batches').value) || 0;
+        const totalCC = parseMoney(document.getElementById('total_cc').value);
+        const totalBatches = parseMoney(document.getElementById('total_batches').value);
         const difference = totalCC - totalBatches;
         
         const ccVsBatchesInput = document.getElementById('cc_vs_batches');
         const wrap = document.getElementById('cc_vs_batches_wrap');
         if (ccVsBatchesInput) {
-            ccVsBatchesInput.value = difference.toFixed(2);
+            ccVsBatchesInput.value = formatMoney(difference);
             ccVsBatchesInput.classList.remove('bg-danger', 'bg-warning', 'bg-success', 'text-white', 'text-dark', 'fw-bold');
         }
         if (wrap) {
@@ -763,7 +877,36 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalTurnover = savedTotalTurnover + formTotalTurnover;
         
         if (field2Input) {
-            field2Input.value = totalTurnover.toFixed(2);
+            field2Input.value = formatMoney(totalTurnover);
+        }
+        updateNetTurnover();
+    }
+
+    function calculateTotalCreditSale() {
+        const rows = tbody.querySelectorAll('.cashup-row');
+        let formTotal = 0;
+
+        rows.forEach((row) => {
+            const input = row.querySelector('.creditsale-input');
+            if (input && input.value) {
+                formTotal += parseFloat(input.value) || 0;
+            }
+        });
+
+        const totalInput = document.getElementById('total_credit_sale');
+        const savedTotal = parseFloat(totalInput ? totalInput.getAttribute('data-saved-credit-sale') : 0) || 0;
+        if (totalInput) {
+            totalInput.value = formatMoney(savedTotal + formTotal);
+        }
+        updateNetTurnover();
+    }
+
+    function updateNetTurnover() {
+        const turnover = parseMoney(document.getElementById('field_2')?.value);
+        const creditSale = parseMoney(document.getElementById('total_credit_sale')?.value);
+        const netInput = document.getElementById('total_net_turnover');
+        if (netInput) {
+            netInput.value = formatMoney(turnover - creditSale);
         }
     }
 
@@ -782,52 +925,39 @@ document.addEventListener('DOMContentLoaded', function() {
         const savedTotal = parseFloat(totalInput ? totalInput.getAttribute('data-saved-cash') : 0) || 0;
         
         if (totalInput) {
-            totalInput.value = (savedTotal + formTotal).toFixed(2);
+            totalInput.value = formatMoney(savedTotal + formTotal);
         }
         updateTotalTenders();
     }
 
     function updateTotalTenders() {
-        const cash = parseFloat(document.getElementById('total_cash')?.value) || 0;
-        const cc = parseFloat(document.getElementById('total_cc')?.value) || 0;
+        const cash = parseMoney(document.getElementById('total_cash')?.value);
+        const cc = parseMoney(document.getElementById('total_cc')?.value);
         const tendersInput = document.getElementById('total_tenders');
         if (tendersInput) {
-            tendersInput.value = (cash + cc).toFixed(2);
+            tendersInput.value = formatMoney(cash + cc);
         }
     }
     
     function calculateTotalTipOuts() {
         const rows = tbody.querySelectorAll('.cashup-row');
-        let formTotalCcCommission = 0;
-        let formTotalCombinedTips = 0;
-        
-        rows.forEach((row) => {
-            const ccCommissionInput = row.querySelector('.cc-commission');
-            const combinedTipsInput = row.querySelector('.combined-tips');
-            
-            if (ccCommissionInput && ccCommissionInput.value) {
-                formTotalCcCommission += parseFloat(ccCommissionInput.value) || 0;
-            }
-            if (combinedTipsInput && combinedTipsInput.value) {
-                formTotalCombinedTips += parseFloat(combinedTipsInput.value) || 0;
+        const rules = TIP_SETTINGS.tip_rules || [];
+
+        rules.forEach((rule) => {
+            let formTotal = 0;
+            rows.forEach((row) => {
+                const input = row.querySelector(`.tip-out-amount[data-tip-key="${rule.key}"]`);
+                if (input && input.value) {
+                    formTotal += parseMoney(input.value);
+                }
+            });
+
+            const totalInput = document.getElementById(`total_tip_out_${rule.key}`);
+            const saved = parseFloat(totalInput ? totalInput.getAttribute('data-saved-amount') : 0) || 0;
+            if (totalInput) {
+                totalInput.value = formatMoney(saved + formTotal);
             }
         });
-        
-        const totalCcCommissionInput = document.getElementById('total_cc_commission');
-        const totalCombinedTipsInput = document.getElementById('total_combined_tips');
-        
-        const savedCcCommission = parseFloat(totalCcCommissionInput ? totalCcCommissionInput.getAttribute('data-saved-cc-commission') : 0) || 0;
-        const savedCombinedTips = parseFloat(totalCombinedTipsInput ? totalCombinedTipsInput.getAttribute('data-saved-combined-tips') : 0) || 0;
-        
-        const totalCcCommission = savedCcCommission + formTotalCcCommission;
-        const totalCombinedTips = savedCombinedTips + formTotalCombinedTips;
-        
-        if (totalCcCommissionInput) {
-            totalCcCommissionInput.value = totalCcCommission.toFixed(2);
-        }
-        if (totalCombinedTipsInput) {
-            totalCombinedTipsInput.value = totalCombinedTips.toFixed(2);
-        }
     }
     
     entryDate.addEventListener('change', function() {
@@ -870,14 +1000,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const creditCard = row.querySelector('.creditcard-input');
             if (creditCard) creditCard.name = `credit_card_${index}`;
 
+            const creditSale = row.querySelector('.creditsale-input');
+            if (creditSale) creditSale.name = `credit_sale_${index}`;
+
             const tip = row.querySelector('.tip-amount');
             if (tip) tip.name = `tip_${index}`;
 
-            const ccCommission = row.querySelector('.cc-commission');
-            if (ccCommission) ccCommission.name = `cc_commission_${index}`;
-
-            const combinedTips = row.querySelector('.combined-tips');
-            if (combinedTips) combinedTips.name = `combined_tips_${index}`;
+            row.querySelectorAll('.tip-out-amount').forEach((input) => {
+                const key = input.getAttribute('data-tip-key');
+                if (key) input.name = `tip_out_${key}_${index}`;
+            });
         });
         rowCount = rows.length;
     }
@@ -1009,39 +1141,43 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Tip out from waiter tips (gross), not turnover:
-    // gross = cash + CC - turnover (both tenders against turnover)
-    // 5% → CC commission, 15% → combined tips pool, waiter keeps 80%
+    // Tip outs use Settings: basis = tips (gross) or turnover; percentages from tip rules
+    // Credit sale is subtracted from turnover before tip calc
     function calculateTip(row) {
         const turnoverInput = row.querySelector('.turnover-input');
         const cashInput = row.querySelector('.cash-input');
         const creditCardInput = row.querySelector('.creditcard-input');
+        const creditSaleInput = row.querySelector('.creditsale-input');
         const tipInput = row.querySelector('.tip-amount');
-        const ccCommissionInput = row.querySelector('.cc-commission');
-        const combinedTipsInput = row.querySelector('.combined-tips');
 
         const turnover = parseFloat(turnoverInput.value) || 0;
         const cash = parseFloat(cashInput ? cashInput.value : 0) || 0;
         const creditCard = parseFloat(creditCardInput.value) || 0;
+        const creditSale = parseFloat(creditSaleInput ? creditSaleInput.value : 0) || 0;
+        const effectiveTurnover = turnover - creditSale;
         
-        const grossTip = cash + creditCard - turnover;
-        let ccCommission = 0;
-        let combinedTips = 0;
-        let tip = grossTip;
-        
-        if (grossTip > 0) {
-            ccCommission = Math.round(grossTip * 0.05 * 100) / 100;
-            combinedTips = Math.round(grossTip * 0.15 * 100) / 100;
-            tip = Math.round((grossTip - ccCommission - combinedTips) * 100) / 100;
-        }
+        const grossTip = cash + creditCard - effectiveTurnover;
+        const basis = TIP_SETTINGS.tip_out_basis === 'turnover'
+            ? (effectiveTurnover > 0 ? effectiveTurnover : 0)
+            : (grossTip > 0 ? grossTip : 0);
 
-        tipInput.value = tip.toFixed(2);
-        ccCommissionInput.value = ccCommission.toFixed(2);
-        combinedTipsInput.value = combinedTips.toFixed(2);
+        let totalOuts = 0;
+        (TIP_SETTINGS.tip_rules || []).forEach((rule) => {
+            const amount = basis > 0
+                ? Math.round(basis * (Number(rule.percent) / 100) * 100) / 100
+                : 0;
+            totalOuts += amount;
+            const outInput = row.querySelector(`.tip-out-amount[data-tip-key="${rule.key}"]`);
+            if (outInput) outInput.value = formatMoney(amount);
+        });
+
+        const tip = Math.round((grossTip - totalOuts) * 100) / 100;
+        tipInput.value = formatMoney(tip);
 
         turnoverInput.classList.remove('is-invalid');
         if (cashInput) cashInput.classList.remove('is-invalid');
         creditCardInput.classList.remove('is-invalid');
+        if (creditSaleInput) creditSaleInput.classList.remove('is-invalid');
         tipInput.classList.remove('tip-negative');
 
         if (tip < 0) {
@@ -1056,6 +1192,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const turnoverInput = row.querySelector('.turnover-input');
         const cashInput = row.querySelector('.cash-input');
         const creditCardInput = row.querySelector('.creditcard-input');
+        const creditSaleInput = row.querySelector('.creditsale-input');
         const staffSelect = row.querySelector('.staff-select');
 
         turnoverInput.addEventListener('input', function() {
@@ -1078,6 +1215,13 @@ document.addEventListener('DOMContentLoaded', function() {
             calculateTotalCC();
         });
 
+        if (creditSaleInput) {
+            creditSaleInput.addEventListener('input', function() {
+                calculateTip(row);
+                calculateTotalTipOuts();
+                calculateTotalCreditSale();
+            });
+        }
         if (staffSelect) {
             staffSelect.addEventListener('change', function() {
                 if (staffSelect.value === '__new__') {
@@ -1091,23 +1235,6 @@ document.addEventListener('DOMContentLoaded', function() {
         attachRowListeners(row);
         calculateTip(row);
     });
-
-    const submitCashupForm = document.getElementById('submitCashupForm');
-    if (submitCashupForm) {
-        submitCashupForm.addEventListener('submit', function(e) {
-            const date = entryDate.value;
-            if (!date) {
-                e.preventDefault();
-                alert('Please select a date');
-                return false;
-            }
-            const submitDateInput = document.getElementById('submit_date');
-            if (submitDateInput) {
-                submitDateInput.value = date;
-                submitDateInput.name = 'date';
-            }
-        });
-    }
 
     document.getElementById('cashupForm').addEventListener('submit', function(e) {
         const date = entryDate.value;
@@ -1160,10 +1287,11 @@ document.addEventListener('DOMContentLoaded', function() {
     calculateTotalCC();
     calculateTotalTurnover();
     calculateTotalCash();
+    calculateTotalCreditSale();
     calculateTotalBatches();
     calculateCCVsBatches();
     calculateTotalTipOuts();
-    
+    updateNetTurnover();
     document.querySelectorAll('.card-machine-input').forEach((input) => {
         input.addEventListener('input', calculateTotalBatches);
     });

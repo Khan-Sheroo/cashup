@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            background: #e9ecef;
+            color: #111;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        .sheet-toolbar {
+            max-width: 210mm;
+            margin: 1rem auto;
+            padding: 0 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+        .sheet-toolbar .hint {
+            color: #555;
+            font-size: 0.85rem;
+            margin-top: 0.35rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.4rem 0.85rem;
+            border: 1px solid #333;
+            background: #fff;
+            color: #111;
+            text-decoration: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: #111;
+            color: #fff;
+            border-color: #111;
+        }
+
+        .slip-page {
+            width: 210mm;
+            height: 297mm;
+            margin: 0 auto 2rem;
+            background: #fff;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            overflow: hidden;
+            box-shadow: 0 0 0 1px #ccc;
+        }
+        .waiter-slip {
+            min-width: 0;
+            min-height: 0;
+            padding: 2.5mm;
+            overflow: hidden;
+        }
+        .slip-frame {
+            width: 100%;
+            height: 100%;
+            border: 1.5pt solid #111;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #fff;
+        }
+        .slip-frame h1 {
+            font-size: 10pt;
+            padding: 1.8mm 2mm;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            text-align: center;
+            border-bottom: 1.5pt solid #111;
+            background: #f1f1f1;
+            line-height: 1.15;
+            flex: 0 0 auto;
+        }
+        .slip-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            flex: 0 0 auto;
+        }
+        .slip-table th,
+        .slip-table td {
+            border: 1px solid #111;
+            vertical-align: middle;
+        }
+        .slip-table .key {
+            width: 36%;
+            background: #f8f8f8;
+            font-weight: 700;
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            padding: 1.8mm 2mm;
+            text-align: left;
+        }
+        .slip-table .value {
+            width: 64%;
+            height: 7mm;
+            background: #fff;
+        }
+        .notes-cell {
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .notes-key {
+            background: #f8f8f8;
+            font-weight: 700;
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            padding: 1.5mm 2mm;
+            border-bottom: 1px solid #111;
+            border-top: 1px solid #111;
+            flex: 0 0 auto;
+        }
+        .notes-value {
+            flex: 1 1 auto;
+            min-height: 0;
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    transparent 0,
+                    transparent 6mm,
+                    #ccc 6mm,
+                    #ccc calc(6mm + 1px)
+                );
+            background-position: 0 1mm;
+        }
+        .slip-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1mm 2mm;
+            border-top: 1px solid #111;
+            font-size: 6.5pt;
+            color: #555;
+            background: #f8f8f8;
+            flex: 0 0 auto;
+        }
+
+        @media print {
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #fff !important;
+                overflow: hidden !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .no-print { display: none !important; }
+
+            /* One page only: fill the printable page box, never taller than 100% */
+            .slip-page {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100% !important;
+                height: 100% !important;
+                max-height: 100% !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                overflow: hidden !important;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sheet-toolbar no-print">
+        <div>
+            <a class="btn" href="{{ url_for('cashup.new_cashup') }}">Back to Cash-Up</a>
+            <p class="hint">Print on A4 · Margins: None · Headers and footers: Off · Scale: 100% or Default</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="printBtn">Print / Save as PDF</button>
+    </div>
+
+    <div class="slip-page">
+        {% for i in range(4) %}
+        <div class="waiter-slip">
+            <div class="slip-frame">
+                <h1>Waiter Cash-Up</h1>
+                <table class="slip-table">
+                    <tr>
+                        <th class="key">Date</th>
+                        <td class="value"></td>
+                    </tr>
+                    <tr>
+                        <th class="key">Name</th>
+                        <td class="value"></td>
+                    </tr>
+                    <tr>
+                        <th class="key">Turnover</th>
+                        <td class="value"></td>
+                    </tr>
+                    <tr>
+                        <th class="key">Credit Card</th>
+                        <td class="value"></td>
+                    </tr>
+                    <tr>
+                        <th class="key">Credit Sale</th>
+                        <td class="value"></td>
+                    </tr>
+                    <tr>
+                        <th class="key">Cash SCR</th>
+                        <td class="value"></td>
+                    </tr>
+                    <tr>
+                        <th class="key">Cash $</th>
+                        <td class="value"></td>
+                    </tr>
+                    <tr>
+                        <th class="key">Cash €</th>
+                        <td class="value"></td>
+                    </tr>
+                </table>
+                <div class="notes-cell">
+                    <div class="notes-key">Notes</div>
+                    <div class="notes-value"></div>
+                </div>
+                <div class="slip-footer">
+                    <span>CashUp</span>
+                    <span>{{ currency_symbol.strip() }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function preparePrint() {
+            document.title = ' ';
+        }
+        document.getElementById('printBtn').addEventListener('click', function () {
+            preparePrint();
+            window.print();
+        });
+        window.addEventListener('beforeprint', preparePrint);
+    </script>
+</body>
+</html>

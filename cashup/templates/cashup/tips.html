@@ -2,83 +2,227 @@
 
 {% block title %}Tips Sheet - CashUp{% endblock %}
 
-{% block content %}
-<h1 class="mb-4">Weekly Tips Sheet</h1>
+{% block extra_css %}
+<style>
+    .work-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #333;
+    }
+    .work-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .work-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem 1.25rem;
+    }
+    .work-sheet .sheet-meta label {
+        font-weight: 700;
+        margin: 0;
+    }
+    .work-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .summary-item {
+        border: 1px solid #333;
+        padding: 0.5rem 0.65rem;
+        background: #fff;
+    }
+    .summary-item .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #555;
+        margin-bottom: 0.15rem;
+    }
+    .summary-item .sheet-value {
+        display: block;
+        width: 100%;
+        font-size: 1.05rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #111;
+    }
+    .sheet-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        background: #fff;
+    }
+    .sheet-table th,
+    .sheet-table td {
+        border: 1px solid #333;
+        padding: 0.25rem 0.35rem;
+        vertical-align: middle;
+    }
+    .sheet-table thead th {
+        background: #f1f1f1;
+        font-weight: 700;
+        text-align: center;
+    }
+    .sheet-table thead th.col-waiter {
+        text-align: left;
+    }
+    .sheet-table thead th.col-total {
+        background: #e8e8e8;
+    }
+    .sheet-table tbody td.num,
+    .sheet-table tfoot td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .sheet-table tbody td.name {
+        font-weight: 700;
+    }
+    .sheet-table tbody td.row-total {
+        background: #f8f8f8;
+        font-weight: 600;
+    }
+    .sheet-table tfoot th,
+    .sheet-table tfoot td {
+        background: #f8f8f8;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    .sheet-table tfoot th {
+        text-align: left;
+    }
+    .sheet-table .empty {
+        color: #999;
+        text-align: center;
+    }
+    .sheet-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 2px solid #111;
+    }
+    .sheet-actions .btn,
+    .sheet-meta .btn {
+        border-radius: 0;
+        border-width: 1px;
+    }
+    @media (max-width: 992px) {
+        .summary-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
 
-<div class="card mb-3">
-    <div class="card-body">
-        <div class="row align-items-center">
-            <div class="col-md-6">
-                <h5>Week: {{ week_start.strftime('%B %d') }} - {{ week_end.strftime('%B %d, %Y') }}</h5>
-            </div>
-            <div class="col-md-6 text-end">
-                <a href="{{ url_for('cashup.tips_sheet', week_start=prev_week.isoformat()) }}" class="btn btn-secondary me-2">
-                    <i class="fas fa-chevron-left"></i> Previous Week
-                </a>
-                <a href="{{ url_for('cashup.tips_sheet', week_start=next_week.isoformat()) }}" class="btn btn-secondary">
-                    Next Week <i class="fas fa-chevron-right"></i>
-                </a>
-            </div>
+{% block content %}
+<div class="work-sheet">
+    <h1>Weekly Tips Sheet</h1>
+    <div class="sheet-meta">
+        <div>
+            <label>Week</label>
+            {{ week_start.strftime('%B %d') }} – {{ week_end.strftime('%B %d, %Y') }}
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('cashup.tips_sheet', week_start=prev_week.isoformat()) }}" class="btn btn-sm btn-outline-dark">Previous Week</a>
+            <a href="{{ url_for('cashup.tips_sheet', week_start=next_week.isoformat()) }}" class="btn btn-sm btn-outline-dark">Next Week</a>
         </div>
     </div>
-</div>
 
-<div class="table-responsive">
-    <table class="table table-bordered table-striped">
-        <thead class="table-dark">
-            <tr>
-                <th>Waiter</th>
-                {% for date in week_dates %}
-                <th class="text-center">
-                    <div>{{ date.strftime('%a') }}</div>
-                    <div><small>{{ date.strftime('%m/%d') }}</small></div>
-                </th>
-                {% endfor %}
-                <th class="text-center bg-success text-white">Total Tips</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for waiter_id, data in tips_by_waiter.items() %}
-            <tr>
-                <td class="fw-bold">{{ data.name }}</td>
-                {% for date in week_dates %}
-                <td class="text-end">
-                    {% if date in data.tips %}
-                        R{{ "%.2f"|format(data.tips[date].tip_amount) }}
-                    {% else %}
-                        <span class="text-muted">-</span>
-                    {% endif %}
-                </td>
-                {% endfor %}
-                <td class="text-end fw-bold bg-light">R{{ "%.2f"|format(data.total_tips) }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-        <tfoot class="table-dark">
-            <tr>
-                <td class="fw-bold">WEEK TOTALS</td>
-                {% for date in week_dates %}
-                <td class="text-end">
-                    {% set day_tips = [] %}
-                    {% for waiter_id, data in tips_by_waiter.items() %}
-                        {% if date in data.tips %}
-                            {% set _ = day_tips.append(data.tips[date].tip_amount) %}
-                        {% endif %}
+    <h2>Week Summary</h2>
+    <div class="summary-grid">
+        <div class="summary-item">
+            <div class="label">Week Of</div>
+            <div class="sheet-value">{{ week_start.strftime('%Y-%m-%d') }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Waiters</div>
+            <div class="sheet-value">{{ tips_by_waiter|length }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Week Total Tips</div>
+            <div class="sheet-value">{{ week_total_tips|money }}</div>
+        </div>
+    </div>
+
+    <h2>Waiter Tips</h2>
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr>
+                    <th class="col-waiter">Waiter</th>
+                    {% for date in week_dates %}
+                    <th>
+                        <div>{{ date.strftime('%a') }}</div>
+                        <div style="font-weight: 400; font-size: 0.8rem;">{{ date.strftime('%m/%d') }}</div>
+                    </th>
                     {% endfor %}
-                    {% if day_tips %}
-                        R{{ "%.2f"|format(day_tips|sum) }}
-                    {% else %}
-                        <span class="text-muted">-</span>
-                    {% endif %}
-                </td>
-                {% endfor %}
-                <td class="text-end fw-bold">R{{ "%.2f"|format(week_total_tips) }}</td>
-            </tr>
-        </tfoot>
-    </table>
-</div>
+                    <th class="col-total">Total Tips</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if tips_by_waiter %}
+                    {% for waiter_id, data in tips_by_waiter.items() %}
+                    <tr>
+                        <td class="name">{{ data.name }}</td>
+                        {% for date in week_dates %}
+                        <td class="num">
+                            {% if date in data.tips %}
+                                {{ data.tips[date].tip_amount|money }}
+                            {% else %}
+                                <span class="empty">-</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                        <td class="num row-total">{{ data.total_tips|money }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="{{ week_dates|length + 2 }}" class="empty" style="text-align: left; padding: 0.75rem;">
+                            No waiter tips for this week.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th>Week Totals</th>
+                    {% for date in week_dates %}
+                    <td class="num">
+                        {% set day_tips = [] %}
+                        {% for waiter_id, data in tips_by_waiter.items() %}
+                            {% if date in data.tips %}
+                                {% set _ = day_tips.append(data.tips[date].tip_amount) %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if day_tips %}
+                            {{ day_tips|sum|money }}
+                        {% else %}
+                            <span class="empty">-</span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="num">{{ week_total_tips|money }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
 
-<div class="mt-3">
-    <a href="{{ url_for('cashup.new_cashup') }}" class="btn btn-primary">Back to Cash-Up</a>
+    <div class="sheet-actions">
+        <a href="{{ url_for('cashup.new_cashup') }}" class="btn btn-outline-dark">Back to Cash-Up</a>
+    </div>
 </div>
 {% endblock %}
