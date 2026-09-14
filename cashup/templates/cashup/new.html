@@ -199,6 +199,186 @@
     .history-sheet {
         margin-top: 1.5rem;
     }
+    .staff-files-sheet .staff-files-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1rem;
+        align-items: flex-end;
+        margin-bottom: 0.75rem;
+    }
+    .staff-files-sheet .staff-files-controls label {
+        font-weight: 700;
+        margin: 0 0 0.2rem;
+        display: block;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #555;
+    }
+    .staff-files-sheet .staff-files-controls .form-select,
+    .staff-files-sheet .staff-files-controls .form-control {
+        border-radius: 0;
+        border-color: #333;
+        min-width: 12rem;
+    }
+    .staff-files-sheet .staff-files-controls .btn {
+        border-radius: 0;
+    }
+    .staff-files-sheet .upload-queue {
+        margin: 0.75rem 0 1rem;
+        display: none;
+    }
+    .staff-files-sheet .upload-queue.is-visible {
+        display: block;
+    }
+    .staff-files-sheet .upload-queue .sheet-table input.form-control {
+        border: 1px solid #333;
+        border-radius: 0;
+        min-width: 10rem;
+    }
+    .staff-files-sheet .upload-queue-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-top: 0.5rem;
+    }
+    .staff-files-sheet .upload-queue-actions .form-control {
+        border-radius: 0;
+        border-color: #333;
+        max-width: 16rem;
+    }
+    .staff-files-sheet .folder-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-bottom: 0.75rem;
+    }
+    .staff-files-sheet .folder-chip {
+        border: 1px solid #333;
+        background: #fff;
+        color: #111;
+        border-radius: 0;
+        padding: 0.25rem 0.55rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+    }
+    .staff-files-sheet .folder-chip.active {
+        background: #111;
+        color: #fff;
+    }
+    .staff-files-sheet .folder-chip .count {
+        font-size: 0.75rem;
+        opacity: 0.75;
+    }
+    .staff-files-sheet .folder-chip.drag-over {
+        background: #fffef5;
+        outline: 2px solid #111;
+        outline-offset: -2px;
+    }
+    .staff-files-sheet .file-row {
+        cursor: grab;
+    }
+    .staff-files-sheet .file-row.dragging {
+        opacity: 0.45;
+    }
+    .staff-files-sheet .folder-section-title {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 700;
+        margin: 0.85rem 0 0.35rem;
+        color: #333;
+    }
+    .staff-files-sheet .drop-hint {
+        color: #666;
+        font-size: 0.85rem;
+        margin: 0 0 0.5rem;
+    }
+    .staff-files-sheet .folder-create {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+    .staff-files-sheet .folder-create .form-control {
+        border-radius: 0;
+        border-color: #333;
+        max-width: 14rem;
+    }
+    .staff-files-sheet .btn-row .form-select {
+        flex: 0 0 auto;
+        border-radius: 0;
+        border-color: #333;
+        padding: 0.2rem 0.45rem;
+        font-size: 0.8rem;
+        min-width: 8.5rem;
+        max-width: 11rem;
+    }
+    .staff-files-thumb {
+        width: 48px;
+        height: 48px;
+        object-fit: cover;
+        border: 1px solid #333;
+        display: block;
+        cursor: pointer;
+    }
+    .staff-files-empty {
+        color: #666;
+        font-size: 0.9rem;
+        margin: 0.5rem 0 0;
+    }
+    .btn-row {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.35rem;
+        white-space: nowrap;
+    }
+    .btn-row .btn {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 0.2rem 0.45rem;
+        font-size: 0.8rem;
+        line-height: 1.25;
+        border-radius: 0;
+    }
+    .sheet-table td.actions-cell {
+        white-space: nowrap;
+        overflow-x: auto;
+        width: 1%;
+    }
+    #staffFilePreviewModal .modal-content {
+        border-radius: 0;
+        border: 1px solid #333;
+    }
+    #staffFilePreviewModal .modal-header,
+    #staffFilePreviewModal .modal-footer {
+        border-color: #333;
+    }
+    #staffFilePreviewModal .btn {
+        border-radius: 0;
+    }
+    #staffFilePreviewBody {
+        min-height: 12rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8f8f8;
+    }
+    #staffFilePreviewBody img {
+        max-width: 100%;
+        max-height: min(70vh, 720px);
+        height: auto;
+        display: block;
+    }
+    #staffFilePreviewBody iframe {
+        width: 100%;
+        height: min(70vh, 720px);
+        border: 0;
+        background: #fff;
+    }
     @media (max-width: 992px) {
         .summary-grid { grid-template-columns: repeat(2, 1fr); }
         .batch-grid { grid-template-columns: repeat(2, 1fr); }
@@ -426,6 +606,100 @@
 </div>
 </form>
 
+<div class="work-sheet history-sheet staff-files-sheet">
+    <h2>Staff Files</h2>
+    <p class="text-muted small mb-3">Select a staff member, organize files into folders, and upload documents or images.</p>
+    <div class="staff-files-controls">
+        <div>
+            <label for="staffFilesSelect">Staff member</label>
+            <select id="staffFilesSelect" class="form-select form-select-sm">
+                <option value="">Select staff...</option>
+                {% for staff in staff_list %}
+                <option value="{{ staff.id }}">{{ staff.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="staffUploadFolderSelect">Upload into</label>
+            <select id="staffUploadFolderSelect" class="form-select form-select-sm" disabled>
+                <option value="">Unfiled</option>
+            </select>
+        </div>
+        <div>
+            <label for="staffFileInput">Documents / images</label>
+            <input type="file" id="staffFileInput" class="form-control form-control-sm" multiple
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.gif,.webp,.bmp,.heic,.heif,image/*,application/pdf">
+        </div>
+        <div>
+            <button type="button" class="btn btn-outline-dark btn-sm" id="staffFileClearQueueBtn" disabled>Clear selection</button>
+        </div>
+    </div>
+    <div class="folder-create d-none" id="staffFolderCreateRow">
+        <input type="text" class="form-control form-control-sm" id="staffNewFolderName" maxlength="120"
+               placeholder="New folder name">
+        <button type="button" class="btn btn-sm btn-dark" id="staffCreateFolderBtn">Create folder</button>
+        <a href="#" class="btn btn-sm btn-outline-dark d-none" id="staffOpenFilesPage" target="_blank">Manage folders</a>
+    </div>
+    <p class="drop-hint d-none" id="staffDropHint">Drag files onto a folder to move them, or drop computer files onto a folder to upload.</p>
+    <div class="folder-bar d-none" id="staffFolderBar"></div>
+    <div class="upload-queue" id="staffUploadQueue">
+        <div class="table-responsive">
+            <table class="sheet-table">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th style="width: 40%;">Label</th>
+                        <th style="width: 1%;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody id="staffUploadQueueBody"></tbody>
+            </table>
+        </div>
+        <div class="upload-queue-actions">
+            <input type="text" class="form-control form-control-sm" id="staffApplyAllLabel" maxlength="200"
+                   placeholder="Apply same label to all…">
+            <button type="button" class="btn btn-sm btn-outline-dark" id="staffApplyAllLabelBtn">Apply to all</button>
+            <button type="button" class="btn btn-sm btn-dark" id="staffFileUploadBtn" disabled>Upload selected</button>
+        </div>
+    </div>
+    <div class="text-danger small d-none" id="staffFilesError"></div>
+    <div id="staffFilesPanel">
+        <p class="staff-files-empty" id="staffFilesHint">Select a staff member to view or upload their files.</p>
+        <div class="table-responsive d-none" id="staffFilesTableWrap">
+            <table class="sheet-table" id="staffFilesTable">
+                <thead>
+                    <tr>
+                        <th style="width: 72px;">Preview</th>
+                        <th>Name</th>
+                        <th>Label</th>
+                        <th>Folder</th>
+                        <th>Uploaded</th>
+                        <th style="width: 1%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="staffFilesBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Staff file preview modal -->
+<div class="modal fade" id="staffFilePreviewModal" tabindex="-1" aria-labelledby="staffFilePreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="staffFilePreviewModalLabel">Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" id="staffFilePreviewBody"></div>
+            <div class="modal-footer">
+                <a href="#" class="btn btn-outline-dark" id="staffFilePreviewDownload" download>Download</a>
+                <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% if has_drafts %}
 <div class="alert alert-info mt-3">
     <strong>Note:</strong> Draft cash-ups are loaded above. Save Draft keeps them editable. Submit finalizes and replaces any previous submission for this date.
@@ -633,6 +907,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 select.appendChild(option);
             }
         });
+
+        const filesSelect = document.getElementById('staffFilesSelect');
+        if (filesSelect) {
+            const option = document.createElement('option');
+            option.value = String(staffId);
+            option.textContent = staffName;
+            filesSelect.appendChild(option);
+        }
 
         if (selectToChoose) {
             selectToChoose.value = String(staffId);
@@ -1295,6 +1577,639 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.card-machine-input').forEach((input) => {
         input.addEventListener('input', calculateTotalBatches);
     });
+
+    // --- Staff Files section ---
+    const staffFilesSelect = document.getElementById('staffFilesSelect');
+    const staffFileInput = document.getElementById('staffFileInput');
+    const staffFileUploadBtn = document.getElementById('staffFileUploadBtn');
+    const staffFileClearQueueBtn = document.getElementById('staffFileClearQueueBtn');
+    const staffUploadQueue = document.getElementById('staffUploadQueue');
+    const staffUploadQueueBody = document.getElementById('staffUploadQueueBody');
+    const staffApplyAllLabel = document.getElementById('staffApplyAllLabel');
+    const staffApplyAllLabelBtn = document.getElementById('staffApplyAllLabelBtn');
+    const staffUploadFolderSelect = document.getElementById('staffUploadFolderSelect');
+    const staffFolderBar = document.getElementById('staffFolderBar');
+    const staffFolderCreateRow = document.getElementById('staffFolderCreateRow');
+    const staffNewFolderName = document.getElementById('staffNewFolderName');
+    const staffCreateFolderBtn = document.getElementById('staffCreateFolderBtn');
+    const staffOpenFilesPage = document.getElementById('staffOpenFilesPage');
+    const staffFilesError = document.getElementById('staffFilesError');
+    const staffFilesHint = document.getElementById('staffFilesHint');
+    const staffFilesTableWrap = document.getElementById('staffFilesTableWrap');
+    const staffFilesBody = document.getElementById('staffFilesBody');
+    let staffUploadItems = [];
+    let staffFolders = [];
+    let staffFolderFilter = 'all';
+    let staffUnfiledCount = 0;
+    let staffTotalCount = 0;
+
+    function setStaffFilesError(msg) {
+        if (!staffFilesError) return;
+        staffFilesError.textContent = msg || '';
+        staffFilesError.classList.toggle('d-none', !msg);
+    }
+
+    function formatUploadDate(iso) {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso;
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${day} ${hh}:${mm}`;
+    }
+
+    function escapeHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function defaultStaffFileLabel(filename) {
+        const name = String(filename || '').split(/[/\\]/).pop() || '';
+        const stem = name.includes('.') ? name.slice(0, name.lastIndexOf('.')) : name;
+        const cleaned = stem.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+        return (cleaned || name || 'Untitled').slice(0, 200);
+    }
+
+    function folderOptionsHtml(selectedId) {
+        const selected = selectedId == null || selectedId === '' ? '' : String(selectedId);
+        let html = `<option value="" ${selected === '' ? 'selected' : ''}>Unfiled</option>`;
+        staffFolders.forEach((folder) => {
+            html += `<option value="${folder.id}" ${selected === String(folder.id) ? 'selected' : ''}>${escapeHtml(folder.name)}</option>`;
+        });
+        return html;
+    }
+
+    function renderStaffFolderControls() {
+        const staffId = staffFilesSelect?.value;
+        const staffDropHint = document.getElementById('staffDropHint');
+        if (staffFolderCreateRow) {
+            staffFolderCreateRow.classList.toggle('d-none', !staffId);
+        }
+        if (staffDropHint) {
+            staffDropHint.classList.toggle('d-none', !staffId);
+        }
+        if (staffUploadFolderSelect) {
+            staffUploadFolderSelect.disabled = !staffId;
+            const current = staffUploadFolderSelect.value;
+            staffUploadFolderSelect.innerHTML = folderOptionsHtml(current);
+            if (staffFolderFilter && staffFolderFilter !== 'all' && staffFolderFilter !== 'unfiled') {
+                staffUploadFolderSelect.value = staffFolderFilter;
+            }
+        }
+        if (staffOpenFilesPage) {
+            if (staffId) {
+                staffOpenFilesPage.href = `/staff/${staffId}/files`;
+                staffOpenFilesPage.classList.remove('d-none');
+            } else {
+                staffOpenFilesPage.classList.add('d-none');
+            }
+        }
+        if (!staffFolderBar) return;
+        if (!staffId) {
+            staffFolderBar.classList.add('d-none');
+            staffFolderBar.innerHTML = '';
+            return;
+        }
+        staffFolderBar.classList.remove('d-none');
+        const chips = [
+            { id: 'all', label: 'All', count: staffTotalCount, droppable: false },
+            ...staffFolders.map((f) => ({ id: String(f.id), label: f.name, count: f.document_count || 0, droppable: true })),
+            { id: 'unfiled', label: 'Unfiled', count: staffUnfiledCount, droppable: true },
+        ];
+        staffFolderBar.innerHTML = chips.map((chip) => `
+            <button type="button"
+                    class="folder-chip ${staffFolderFilter === chip.id ? 'active' : ''} ${chip.droppable ? 'drop-target' : ''}"
+                    data-folder="${escapeHtml(chip.id)}">
+                ${escapeHtml(chip.label)} <span class="count">(${chip.count})</span>
+            </button>`).join('');
+    }
+
+    function renderStaffUploadQueue() {
+        if (!staffUploadQueueBody) return;
+        staffUploadQueueBody.innerHTML = '';
+        staffUploadItems.forEach((item) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${escapeHtml(item.file.name)}</td>
+                <td>
+                    <input type="text" class="form-control form-control-sm staff-queue-label"
+                           maxlength="200" data-id="${item.id}"
+                           value="${escapeHtml(item.label)}"
+                           placeholder="e.g. ID copy">
+                </td>
+                <td class="actions-cell">
+                    <button type="button" class="btn btn-sm btn-outline-danger staff-queue-remove" data-id="${item.id}">Remove</button>
+                </td>`;
+            staffUploadQueueBody.appendChild(tr);
+        });
+        const hasItems = staffUploadItems.length > 0;
+        if (staffUploadQueue) staffUploadQueue.classList.toggle('is-visible', hasItems);
+        if (staffFileClearQueueBtn) staffFileClearQueueBtn.disabled = !hasItems;
+        updateStaffUploadBtnState();
+    }
+
+    function updateStaffUploadBtnState() {
+        if (!staffFileUploadBtn) return;
+        const hasStaff = !!(staffFilesSelect && staffFilesSelect.value);
+        const hasItems = staffUploadItems.length > 0;
+        staffFileUploadBtn.disabled = !(hasStaff && hasItems);
+        staffFileUploadBtn.textContent = hasItems
+            ? `Upload ${staffUploadItems.length} file${staffUploadItems.length === 1 ? '' : 's'}`
+            : 'Upload selected';
+    }
+
+    const previewModalEl = document.getElementById('staffFilePreviewModal');
+    const previewModal = previewModalEl ? new bootstrap.Modal(previewModalEl) : null;
+    const previewTitle = document.getElementById('staffFilePreviewModalLabel');
+    const previewBody = document.getElementById('staffFilePreviewBody');
+    const previewDownload = document.getElementById('staffFilePreviewDownload');
+
+    function openStaffFilePreview(doc) {
+        if (!previewModal || !previewBody) return;
+        const viewUrl = `/staff/files/${doc.id}/download`;
+        const downloadUrl = `${viewUrl}?download=1`;
+        const title = doc.label
+            ? `${doc.original_filename} — ${doc.label}`
+            : (doc.original_filename || 'Preview');
+        if (previewTitle) previewTitle.textContent = title;
+        if (previewDownload) previewDownload.href = downloadUrl;
+
+        previewBody.innerHTML = '';
+        if (doc.is_image) {
+            const img = document.createElement('img');
+            img.src = viewUrl;
+            img.alt = doc.original_filename || 'Preview';
+            previewBody.appendChild(img);
+        } else if (doc.is_pdf || (doc.content_type || '').toLowerCase() === 'application/pdf') {
+            const iframe = document.createElement('iframe');
+            iframe.src = viewUrl;
+            iframe.title = doc.original_filename || 'PDF preview';
+            previewBody.appendChild(iframe);
+        } else {
+            previewBody.innerHTML = `
+                <div class="p-4 text-center">
+                    <p class="mb-2">No in-app preview for this file type.</p>
+                    <a class="btn btn-dark" style="border-radius:0;" href="${downloadUrl}">Download to open</a>
+                </div>`;
+        }
+        previewModal.show();
+    }
+
+    function buildStaffFileRow(doc) {
+        const viewUrl = `/staff/files/${doc.id}/download`;
+        const downloadUrl = `${viewUrl}?download=1`;
+        const thumb = doc.is_image
+            ? `<button type="button" class="btn p-0 border-0 staff-file-preview" data-doc-id="${doc.id}" title="Preview">
+                   <img class="staff-files-thumb" src="${viewUrl}" alt="">
+               </button>`
+            : '<span class="text-muted small">File</span>';
+        const tr = document.createElement('tr');
+        tr.className = 'file-row';
+        tr.draggable = true;
+        tr._staffDoc = doc;
+        tr.setAttribute('data-doc-id', doc.id);
+        tr.innerHTML = `
+            <td>${thumb}</td>
+            <td>${escapeHtml(doc.original_filename)}</td>
+            <td>${escapeHtml(doc.label) || '—'}</td>
+            <td>${escapeHtml(doc.folder_name || 'Unfiled')}</td>
+            <td>${escapeHtml(formatUploadDate(doc.uploaded_at))}</td>
+            <td class="actions-cell">
+                <div class="btn-row">
+                    <select class="form-select form-select-sm staff-move-folder" data-doc-id="${doc.id}" title="Move to folder">
+                        ${folderOptionsHtml(doc.folder_id)}
+                    </select>
+                    <button type="button" class="btn btn-sm btn-outline-dark staff-file-preview" data-doc-id="${doc.id}">Preview</button>
+                    <a class="btn btn-sm btn-outline-dark" href="${downloadUrl}">Download</a>
+                    <button type="button" class="btn btn-sm btn-outline-danger staff-file-delete" data-doc-id="${doc.id}">Delete</button>
+                </div>
+            </td>`;
+        return tr;
+    }
+
+    function appendStaffFileTable(container, documents) {
+        const wrap = document.createElement('div');
+        wrap.className = 'table-responsive mb-2';
+        const table = document.createElement('table');
+        table.className = 'sheet-table';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th style="width: 72px;">Preview</th>
+                    <th>Name</th>
+                    <th>Label</th>
+                    <th>Folder</th>
+                    <th>Uploaded</th>
+                    <th style="width: 1%;">Actions</th>
+                </tr>
+            </thead>`;
+        const tbody = document.createElement('tbody');
+        documents.forEach((doc) => tbody.appendChild(buildStaffFileRow(doc)));
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        container.appendChild(wrap);
+    }
+
+    function renderStaffFiles(documents) {
+        if (!staffFilesBody) return;
+        const panel = document.getElementById('staffFilesPanel');
+        staffFilesBody.innerHTML = '';
+        // Clear grouped tables outside tbody when present
+        if (staffFilesTableWrap) {
+            staffFilesTableWrap.classList.add('d-none');
+        }
+        let groupHost = document.getElementById('staffFilesGrouped');
+        if (!groupHost && panel) {
+            groupHost = document.createElement('div');
+            groupHost.id = 'staffFilesGrouped';
+            panel.appendChild(groupHost);
+        }
+        if (groupHost) groupHost.innerHTML = '';
+
+        if (!documents.length) {
+            staffFilesHint.textContent = 'No files in this folder yet.';
+            staffFilesHint.classList.remove('d-none');
+            return;
+        }
+        staffFilesHint.classList.add('d-none');
+
+        if (staffFolderFilter === 'all' && groupHost) {
+            staffFolders.forEach((folder) => {
+                const folderDocs = documents.filter((d) => String(d.folder_id) === String(folder.id));
+                if (!folderDocs.length) return;
+                const title = document.createElement('div');
+                title.className = 'folder-section-title';
+                title.textContent = folder.name;
+                groupHost.appendChild(title);
+                appendStaffFileTable(groupHost, folderDocs);
+            });
+            const unfiledDocs = documents.filter((d) => !d.folder_id);
+            if (unfiledDocs.length) {
+                const title = document.createElement('div');
+                title.className = 'folder-section-title';
+                title.textContent = 'Unfiled';
+                groupHost.appendChild(title);
+                appendStaffFileTable(groupHost, unfiledDocs);
+            }
+            return;
+        }
+
+        if (staffFilesTableWrap) {
+            staffFilesTableWrap.classList.remove('d-none');
+            documents.forEach((doc) => staffFilesBody.appendChild(buildStaffFileRow(doc)));
+        }
+    }
+
+    async function loadStaffFiles(staffId) {
+        setStaffFilesError('');
+        updateStaffUploadBtnState();
+        if (!staffId) {
+            staffFolders = [];
+            staffFolderFilter = 'all';
+            staffUnfiledCount = 0;
+            staffTotalCount = 0;
+            renderStaffFolderControls();
+            staffFilesHint.textContent = 'Select a staff member to view or upload their files.';
+            staffFilesHint.classList.remove('d-none');
+            staffFilesTableWrap.classList.add('d-none');
+            staffFilesBody.innerHTML = '';
+            return;
+        }
+        staffFilesHint.textContent = 'Loading…';
+        staffFilesHint.classList.remove('d-none');
+        staffFilesTableWrap.classList.add('d-none');
+        try {
+            const params = new URLSearchParams();
+            if (staffFolderFilter && staffFolderFilter !== 'all') {
+                params.set('folder', staffFolderFilter);
+            }
+            const qs = params.toString();
+            const res = await fetch(`/staff/api/${staffId}/files${qs ? `?${qs}` : ''}`);
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                setStaffFilesError(data.error || 'Could not load files');
+                return;
+            }
+            staffFolders = data.folders || [];
+            staffUnfiledCount = data.unfiled_count || 0;
+            staffTotalCount = data.total_count || 0;
+            renderStaffFolderControls();
+            renderStaffFiles(data.documents || []);
+        } catch (err) {
+            setStaffFilesError('Could not load files');
+        }
+    }
+
+    if (staffFilesSelect) {
+        staffFilesSelect.addEventListener('change', () => {
+            staffFolderFilter = 'all';
+            loadStaffFiles(staffFilesSelect.value);
+        });
+    }
+
+    if (staffFolderBar) {
+        staffFolderBar.addEventListener('click', (e) => {
+            const chip = e.target.closest('.folder-chip');
+            if (!chip || !staffFilesSelect.value) return;
+            staffFolderFilter = chip.getAttribute('data-folder') || 'all';
+            loadStaffFiles(staffFilesSelect.value);
+        });
+    }
+
+    if (staffCreateFolderBtn) {
+        staffCreateFolderBtn.addEventListener('click', async () => {
+            const staffId = staffFilesSelect.value;
+            const name = (staffNewFolderName?.value || '').trim();
+            if (!staffId) {
+                setStaffFilesError('Select a staff member first');
+                return;
+            }
+            if (!name) {
+                setStaffFilesError('Folder name is required');
+                return;
+            }
+            setStaffFilesError('');
+            staffCreateFolderBtn.disabled = true;
+            try {
+                const res = await fetch(`/staff/api/${staffId}/folders`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ name }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    setStaffFilesError(data.error || 'Could not create folder');
+                    return;
+                }
+                staffNewFolderName.value = '';
+                staffFolderFilter = String(data.folder.id);
+                if (staffUploadFolderSelect) staffUploadFolderSelect.value = staffFolderFilter;
+                await loadStaffFiles(staffId);
+            } catch (err) {
+                setStaffFilesError('Could not create folder');
+            } finally {
+                staffCreateFolderBtn.disabled = false;
+            }
+        });
+    }
+
+    if (staffFileInput) {
+        staffFileInput.addEventListener('change', () => {
+            setStaffFilesError('');
+            Array.from(staffFileInput.files || []).forEach((file) => {
+                staffUploadItems.push({
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                    file,
+                    label: defaultStaffFileLabel(file.name),
+                });
+            });
+            staffFileInput.value = '';
+            renderStaffUploadQueue();
+        });
+    }
+
+    if (staffUploadQueueBody) {
+        staffUploadQueueBody.addEventListener('input', (e) => {
+            const input = e.target.closest('.staff-queue-label');
+            if (!input) return;
+            const item = staffUploadItems.find((q) => q.id === input.getAttribute('data-id'));
+            if (item) item.label = input.value;
+        });
+        staffUploadQueueBody.addEventListener('click', (e) => {
+            const btn = e.target.closest('.staff-queue-remove');
+            if (!btn) return;
+            const id = btn.getAttribute('data-id');
+            staffUploadItems = staffUploadItems.filter((q) => q.id !== id);
+            renderStaffUploadQueue();
+        });
+    }
+
+    if (staffFileClearQueueBtn) {
+        staffFileClearQueueBtn.addEventListener('click', () => {
+            staffUploadItems = [];
+            renderStaffUploadQueue();
+            setStaffFilesError('');
+        });
+    }
+
+    if (staffApplyAllLabelBtn) {
+        staffApplyAllLabelBtn.addEventListener('click', () => {
+            const label = (staffApplyAllLabel?.value || '').trim();
+            staffUploadItems.forEach((item) => {
+                item.label = label || defaultStaffFileLabel(item.file.name);
+            });
+            renderStaffUploadQueue();
+        });
+    }
+
+    if (staffFileUploadBtn) {
+        staffFileUploadBtn.addEventListener('click', async () => {
+            const staffId = staffFilesSelect.value;
+            if (!staffId) {
+                setStaffFilesError('Select a staff member first');
+                return;
+            }
+            if (!staffUploadItems.length) {
+                setStaffFilesError('Choose one or more files to upload');
+                return;
+            }
+            setStaffFilesError('');
+            const fd = new FormData();
+            staffUploadItems.forEach((item) => {
+                fd.append('files', item.file);
+                fd.append('labels', item.label || '');
+            });
+            const folderId = staffUploadFolderSelect?.value || '';
+            if (folderId) fd.append('folder_id', folderId);
+            staffFileUploadBtn.disabled = true;
+            try {
+                const res = await fetch(`/staff/api/${staffId}/files`, {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    setStaffFilesError(data.error || 'Upload failed');
+                    return;
+                }
+                staffUploadItems = [];
+                renderStaffUploadQueue();
+                if (folderId) staffFolderFilter = folderId;
+                await loadStaffFiles(staffId);
+            } catch (err) {
+                setStaffFilesError('Upload failed. Please try again.');
+            } finally {
+                updateStaffUploadBtnState();
+            }
+        });
+    }
+
+    const staffFilesPanel = document.getElementById('staffFilesPanel');
+
+    if (staffFilesPanel) {
+        staffFilesPanel.addEventListener('change', async (e) => {
+            const select = e.target.closest('.staff-move-folder');
+            if (!select) return;
+            const docId = select.getAttribute('data-doc-id');
+            const folderId = select.value || null;
+            try {
+                const res = await fetch(`/staff/files/${docId}/move`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ folder_id: folderId }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    setStaffFilesError(data.error || 'Could not move file');
+                    return;
+                }
+                await loadStaffFiles(staffFilesSelect.value);
+            } catch (err) {
+                setStaffFilesError('Could not move file');
+            }
+        });
+
+        staffFilesPanel.addEventListener('click', async (e) => {
+            const previewBtn = e.target.closest('.staff-file-preview');
+            if (previewBtn) {
+                const row = previewBtn.closest('tr');
+                if (row && row._staffDoc) {
+                    openStaffFilePreview(row._staffDoc);
+                }
+                return;
+            }
+
+            const btn = e.target.closest('.staff-file-delete');
+            if (!btn) return;
+            const docId = btn.getAttribute('data-doc-id');
+            if (!confirm('Delete this file?')) return;
+            try {
+                const res = await fetch(`/staff/files/${docId}/delete`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    setStaffFilesError('Could not delete file');
+                    return;
+                }
+                await loadStaffFiles(staffFilesSelect.value);
+            } catch (err) {
+                setStaffFilesError('Could not delete file');
+            }
+        });
+
+        staffFilesPanel.addEventListener('dragstart', (e) => {
+            const row = e.target.closest('tr.file-row');
+            if (!row) return;
+            if (e.target.closest('button, a, select, input')) {
+                e.preventDefault();
+                return;
+            }
+            const docId = row.getAttribute('data-doc-id');
+            e.dataTransfer.setData('application/x-staff-doc-id', docId);
+            e.dataTransfer.setData('text/plain', docId);
+            e.dataTransfer.effectAllowed = 'move';
+            row.classList.add('dragging');
+        });
+
+        staffFilesPanel.addEventListener('dragend', (e) => {
+            const row = e.target.closest('tr.file-row');
+            if (row) row.classList.remove('dragging');
+            document.querySelectorAll('.folder-chip.drag-over').forEach((el) => el.classList.remove('drag-over'));
+        });
+    }
+
+    if (staffFolderBar) {
+        staffFolderBar.addEventListener('dragover', (e) => {
+            const chip = e.target.closest('.folder-chip.drop-target');
+            if (!chip) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = e.dataTransfer.types.includes('Files') ? 'copy' : 'move';
+            chip.classList.add('drag-over');
+        });
+        staffFolderBar.addEventListener('dragleave', (e) => {
+            const chip = e.target.closest('.folder-chip.drop-target');
+            if (!chip) return;
+            if (!chip.contains(e.relatedTarget)) chip.classList.remove('drag-over');
+        });
+        staffFolderBar.addEventListener('drop', async (e) => {
+            const chip = e.target.closest('.folder-chip.drop-target');
+            if (!chip) return;
+            e.preventDefault();
+            chip.classList.remove('drag-over');
+            const staffId = staffFilesSelect.value;
+            if (!staffId) return;
+            const folderKey = chip.getAttribute('data-folder');
+            try {
+                if (e.dataTransfer.files && e.dataTransfer.files.length) {
+                    const fd = new FormData();
+                    Array.from(e.dataTransfer.files).forEach((file) => {
+                        fd.append('files', file);
+                        fd.append('labels', defaultStaffFileLabel(file.name));
+                    });
+                    if (folderKey && folderKey !== 'unfiled' && folderKey !== 'all') {
+                        fd.append('folder_id', folderKey);
+                    }
+                    const res = await fetch(`/staff/api/${staffId}/files`, {
+                        method: 'POST',
+                        body: fd,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) {
+                        setStaffFilesError(data.error || 'Upload failed');
+                        return;
+                    }
+                    staffFolderFilter = folderKey === 'unfiled' ? 'unfiled' : (folderKey || 'all');
+                    await loadStaffFiles(staffId);
+                    return;
+                }
+                const docId = e.dataTransfer.getData('application/x-staff-doc-id')
+                    || e.dataTransfer.getData('text/plain');
+                if (!docId) return;
+                const folderId = (folderKey === 'unfiled' || folderKey === 'all') ? null : folderKey;
+                const res = await fetch(`/staff/files/${docId}/move`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ folder_id: folderId }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    setStaffFilesError(data.error || 'Could not move file');
+                    return;
+                }
+                await loadStaffFiles(staffId);
+            } catch (err) {
+                setStaffFilesError('Drop failed');
+            }
+        });
+    }
+
+    if (previewModalEl) {
+        previewModalEl.addEventListener('hidden.bs.modal', () => {
+            if (previewBody) previewBody.innerHTML = '';
+        });
+    }
 });
 </script>
 {% endblock %}

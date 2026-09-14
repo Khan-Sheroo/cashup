@@ -2,34 +2,109 @@
 
 {% block title %}Add Staff - CashUp{% endblock %}
 
+{% block extra_css %}
+<style>
+    .work-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #333;
+        max-width: 36rem;
+    }
+    .work-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .work-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1rem;
+    }
+    .work-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .settings-field {
+        border: 1px solid #333;
+        padding: 0.75rem 0.85rem;
+        margin-bottom: 0.75rem;
+        background: #fff;
+    }
+    .settings-field .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #555;
+        margin-bottom: 0.35rem;
+        font-weight: 700;
+    }
+    .settings-field input[type="text"] {
+        border: 1px solid #333;
+        border-radius: 0;
+        padding: 0.35rem 0.5rem;
+        background: #fff;
+        width: 100%;
+    }
+    .settings-field input[type="text"]:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 1px #111;
+        background: #fffef5;
+    }
+    .settings-field .check-row {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .sheet-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 2px solid #111;
+    }
+    .sheet-actions .btn {
+        border-radius: 0;
+        border-width: 1px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row">
-    <div class="col-md-6 mx-auto">
-        <div class="card">
-            <div class="card-header">
-                <h3>Add Staff Member</h3>
-            </div>
-            <div class="card-body">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="name" class="form-label">Full Name *</label>
-                        <input type="text" class="form-control" id="name" name="name" required autofocus>
-                    </div>
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="is_waiter" name="is_waiter">
-                        <label class="form-check-label" for="is_waiter">Waiter (include on tips sheet)</label>
-                    </div>
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="active" name="active" checked>
-                        <label class="form-check-label" for="active">Active</label>
-                    </div>
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{{ url_for('staff.list_staff') }}" class="btn btn-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Add Staff Member</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+<div class="work-sheet">
+    <h1>Add Staff Member</h1>
+    <div class="sheet-meta">
+        <small>New staff appear on the cash-up sheet when marked active.</small>
     </div>
+
+    <h2>Details</h2>
+    <form method="POST">
+        <div class="settings-field">
+            <div class="label">Full Name *</div>
+            <input type="text" id="name" name="name" required autofocus>
+        </div>
+        <div class="settings-field">
+            <label class="check-row" for="is_waiter">
+                <input type="checkbox" id="is_waiter" name="is_waiter">
+                Waiter (include on tips sheet)
+            </label>
+        </div>
+        <div class="settings-field">
+            <label class="check-row" for="active">
+                <input type="checkbox" id="active" name="active" checked>
+                Active
+            </label>
+        </div>
+
+        <div class="sheet-actions">
+            <button type="submit" class="btn btn-dark">Add Staff Member</button>
+            <a href="{{ url_for('staff.list_staff') }}" class="btn btn-outline-dark">Cancel</a>
+        </div>
+    </form>
 </div>
 {% endblock %}

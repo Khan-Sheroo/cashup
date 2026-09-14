@@ -1,0 +1,914 @@
+{% extends "base.html" %}
+
+{% block title %}{{ staff.name }} — Staff Files - CashUp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .work-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #333;
+    }
+    .work-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .work-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem 1.25rem;
+    }
+    .work-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .staff-files-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1rem;
+        align-items: flex-end;
+        margin-bottom: 0.75rem;
+    }
+    .staff-files-controls label {
+        font-weight: 700;
+        margin: 0 0 0.2rem;
+        display: block;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #555;
+    }
+    .staff-files-controls .form-control,
+    .staff-files-controls .form-select {
+        border-radius: 0;
+        border-color: #333;
+        min-width: 12rem;
+    }
+    .staff-files-controls .btn,
+    .work-sheet .btn {
+        border-radius: 0;
+        border-width: 1px;
+    }
+    .folder-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-bottom: 0.75rem;
+    }
+    .folder-bar .folder-chip {
+        border: 1px solid #333;
+        background: #fff;
+        color: #111;
+        border-radius: 0;
+        padding: 0.25rem 0.55rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .folder-bar .folder-chip:hover {
+        background: #f8f8f8;
+        color: #111;
+    }
+    .folder-bar .folder-chip.active {
+        background: #111;
+        color: #fff;
+    }
+    .folder-bar .folder-chip .count {
+        font-size: 0.75rem;
+        opacity: 0.75;
+    }
+    .folder-bar .folder-chip.drag-over {
+        background: #fffef5;
+        outline: 2px solid #111;
+        outline-offset: -2px;
+    }
+    .sheet-table tr.file-row {
+        cursor: grab;
+    }
+    .sheet-table tr.file-row.dragging {
+        opacity: 0.45;
+    }
+    .folder-section-title {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 700;
+        margin: 1rem 0 0.4rem;
+        color: #333;
+    }
+    .folder-section-title:first-child {
+        margin-top: 0;
+    }
+    .drop-hint {
+        color: #666;
+        font-size: 0.85rem;
+        margin: 0 0 0.75rem;
+    }
+    .folder-create {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+    .folder-create .form-control {
+        border-radius: 0;
+        border-color: #333;
+        max-width: 16rem;
+    }
+    .upload-queue {
+        margin: 0.75rem 0 1rem;
+        display: none;
+    }
+    .upload-queue.is-visible {
+        display: block;
+    }
+    .upload-queue .sheet-table input.form-control,
+    .upload-queue .sheet-table .form-select {
+        border: 1px solid #333;
+        border-radius: 0;
+        min-width: 10rem;
+    }
+    .upload-queue-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-top: 0.5rem;
+    }
+    .upload-queue-actions .form-control,
+    .upload-queue-actions .form-select {
+        border-radius: 0;
+        border-color: #333;
+        max-width: 16rem;
+    }
+    .sheet-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        background: #fff;
+    }
+    .sheet-table th,
+    .sheet-table td {
+        border: 1px solid #333;
+        padding: 0.35rem 0.5rem;
+        vertical-align: middle;
+    }
+    .sheet-table thead th {
+        background: #f1f1f1;
+        font-weight: 700;
+        text-align: center;
+    }
+    .staff-files-thumb {
+        width: 48px;
+        height: 48px;
+        object-fit: cover;
+        border: 1px solid #333;
+        display: block;
+        cursor: pointer;
+    }
+    .btn-row {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.35rem;
+        white-space: nowrap;
+    }
+    .btn-row .btn,
+    .btn-row .form-select {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 0.2rem 0.45rem;
+        font-size: 0.8rem;
+        line-height: 1.25;
+        border-radius: 0;
+    }
+    .btn-row .form-select {
+        border-color: #333;
+        min-width: 8.5rem;
+        max-width: 11rem;
+    }
+    .sheet-table td.actions-cell {
+        white-space: nowrap;
+        overflow-x: auto;
+    }
+    .folder-manage-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-top: 0.5rem;
+    }
+    .folder-manage-row .form-control {
+        border-radius: 0;
+        border-color: #333;
+        max-width: 14rem;
+    }
+    #staffFilePreviewModal .modal-content {
+        border-radius: 0;
+        border: 1px solid #333;
+    }
+    #staffFilePreviewModal .modal-header,
+    #staffFilePreviewModal .modal-footer {
+        border-color: #333;
+    }
+    #staffFilePreviewModal .btn {
+        border-radius: 0;
+    }
+    #staffFilePreviewBody {
+        min-height: 12rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8f8f8;
+    }
+    #staffFilePreviewBody img {
+        max-width: 100%;
+        max-height: min(70vh, 720px);
+        height: auto;
+        display: block;
+    }
+    #staffFilePreviewBody iframe {
+        width: 100%;
+        height: min(70vh, 720px);
+        border: 0;
+        background: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="work-sheet">
+    <h1>Staff Files</h1>
+    <div class="sheet-meta">
+        <small>{{ staff.name }}</small>
+        <a href="{{ url_for('staff.list_staff') }}" class="btn btn-outline-dark btn-sm">Back to Staff</a>
+    </div>
+
+    <h2>Folders</h2>
+    <p class="drop-hint">Drag files onto a folder below to move them, or drop computer files onto a folder to upload.</p>
+    <div class="folder-bar" id="folderBar">
+        <a href="{{ url_for('staff.staff_files', staff_id=staff.id, folder='all') }}"
+           class="folder-chip {% if folder_filter == 'all' %}active{% endif %}"
+           data-folder="all">All <span class="count">({{ total_count }})</span></a>
+        {% for folder in folders %}
+        <a href="{{ url_for('staff.staff_files', staff_id=staff.id, folder=folder.id) }}"
+           class="folder-chip drop-target {% if folder_filter == folder.id|string %}active{% endif %}"
+           data-folder="{{ folder.id }}">{{ folder.name }} <span class="count">({{ folder.document_count }})</span></a>
+        {% endfor %}
+        <a href="{{ url_for('staff.staff_files', staff_id=staff.id, folder='unfiled') }}"
+           class="folder-chip drop-target {% if folder_filter == 'unfiled' %}active{% endif %}"
+           data-folder="unfiled">Unfiled <span class="count">({{ unfiled_count }})</span></a>
+    </div>
+    <div class="folder-create">
+        <input type="text" class="form-control form-control-sm" id="newFolderName" maxlength="120"
+               placeholder="New folder name">
+        <button type="button" class="btn btn-sm btn-dark" id="createFolderBtn">Create folder</button>
+    </div>
+    <div class="folder-manage-row {% if folder_filter in ['all', 'unfiled'] %}d-none{% endif %}" id="folderManageRow">
+        <input type="text" class="form-control form-control-sm" id="renameFolderInput" maxlength="120"
+               value="{% if folder_filter not in ['all', 'unfiled'] %}{% for folder in folders %}{% if folder.id|string == folder_filter %}{{ folder.name }}{% endif %}{% endfor %}{% endif %}"
+               placeholder="Rename folder">
+        <button type="button" class="btn btn-sm btn-outline-dark" id="renameFolderBtn">Rename</button>
+        <button type="button" class="btn btn-sm btn-outline-danger" id="deleteFolderBtn">Delete folder</button>
+        <small class="text-muted">Deleting a folder moves its files to Unfiled.</small>
+    </div>
+    <div class="text-danger small d-none" id="folderError"></div>
+
+    <h2>Upload</h2>
+    <div class="staff-files-controls">
+        <div>
+            <label for="uploadFolderSelect">Upload into</label>
+            <select id="uploadFolderSelect" class="form-select form-select-sm">
+                <option value="">Unfiled</option>
+                {% for folder in folders %}
+                <option value="{{ folder.id }}" {% if folder_filter == folder.id|string %}selected{% endif %}>{{ folder.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="fileInput">Documents / images</label>
+            <input type="file" class="form-control form-control-sm" id="fileInput" multiple
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png,.gif,.webp,.bmp,.heic,.heif,image/*,application/pdf">
+        </div>
+        <div>
+            <button type="button" class="btn btn-outline-dark btn-sm" id="clearQueueBtn" disabled>Clear selection</button>
+        </div>
+    </div>
+    <div class="upload-queue" id="uploadQueue">
+        <div class="table-responsive">
+            <table class="sheet-table">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th style="width: 40%;">Label</th>
+                        <th style="width: 1%;">Remove</th>
+                    </tr>
+                </thead>
+                <tbody id="uploadQueueBody"></tbody>
+            </table>
+        </div>
+        <div class="upload-queue-actions">
+            <input type="text" class="form-control form-control-sm" id="applyAllLabel" maxlength="200"
+                   placeholder="Apply same label to all…">
+            <button type="button" class="btn btn-sm btn-outline-dark" id="applyAllLabelBtn">Apply to all</button>
+            <button type="button" class="btn btn-sm btn-dark" id="uploadBtn" disabled>Upload selected</button>
+        </div>
+    </div>
+    <div class="text-danger small d-none" id="uploadError"></div>
+    <div class="text-success small d-none" id="uploadSuccess"></div>
+
+    <h2>Files</h2>
+    <div id="staffFilesList"
+         data-folders='{{ folders|tojson }}'
+         data-folder-filter="{{ folder_filter }}">
+        {% if documents %}
+        {% if folder_filter == 'all' %}
+            {% for folder in folders %}
+                {% set folder_docs = documents|selectattr('folder_id', 'equalto', folder.id)|list %}
+                {% if folder_docs %}
+                <div class="folder-section-title">{{ folder.name }}</div>
+                <div class="table-responsive mb-2">
+                    <table class="sheet-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 72px;">Preview</th>
+                                <th>Name</th>
+                                <th>Label</th>
+                                <th>Folder</th>
+                                <th>Uploaded</th>
+                                <th style="width: 1%;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in folder_docs %}
+                            {% include 'staff/_file_row.html' %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            {% endfor %}
+            {% set unfiled_docs = documents|rejectattr('folder_id')|list %}
+            {% if unfiled_docs %}
+            <div class="folder-section-title">Unfiled</div>
+            <div class="table-responsive">
+                <table class="sheet-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 72px;">Preview</th>
+                            <th>Name</th>
+                            <th>Label</th>
+                            <th>Folder</th>
+                            <th>Uploaded</th>
+                            <th style="width: 1%;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for doc in unfiled_docs %}
+                        {% include 'staff/_file_row.html' %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        {% else %}
+        <div class="table-responsive">
+            <table class="sheet-table">
+                <thead>
+                    <tr>
+                        <th style="width: 72px;">Preview</th>
+                        <th>Name</th>
+                        <th>Label</th>
+                        <th>Folder</th>
+                        <th>Uploaded</th>
+                        <th style="width: 1%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in documents %}
+                    {% include 'staff/_file_row.html' %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="text-muted mb-0" id="emptyFilesMsg">No files in this view yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="staffFilePreviewModal" tabindex="-1" aria-labelledby="staffFilePreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="staffFilePreviewModalLabel">Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0" id="staffFilePreviewBody"></div>
+            <div class="modal-footer">
+                <a href="#" class="btn btn-outline-dark" id="staffFilePreviewDownload">Download</a>
+                <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const staffId = {{ staff.id }};
+    const folderFilter = {{ folder_filter|tojson }};
+    const fileInput = document.getElementById('fileInput');
+    const uploadQueue = document.getElementById('uploadQueue');
+    const uploadQueueBody = document.getElementById('uploadQueueBody');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const clearQueueBtn = document.getElementById('clearQueueBtn');
+    const applyAllLabel = document.getElementById('applyAllLabel');
+    const applyAllLabelBtn = document.getElementById('applyAllLabelBtn');
+    const uploadFolderSelect = document.getElementById('uploadFolderSelect');
+    const errorEl = document.getElementById('uploadError');
+    const successEl = document.getElementById('uploadSuccess');
+    const folderError = document.getElementById('folderError');
+    const newFolderName = document.getElementById('newFolderName');
+    const createFolderBtn = document.getElementById('createFolderBtn');
+    const renameFolderInput = document.getElementById('renameFolderInput');
+    const renameFolderBtn = document.getElementById('renameFolderBtn');
+    const deleteFolderBtn = document.getElementById('deleteFolderBtn');
+    const previewModalEl = document.getElementById('staffFilePreviewModal');
+    const previewModal = previewModalEl ? new bootstrap.Modal(previewModalEl) : null;
+    const previewTitle = document.getElementById('staffFilePreviewModalLabel');
+    const previewBody = document.getElementById('staffFilePreviewBody');
+    const previewDownload = document.getElementById('staffFilePreviewDownload');
+
+    let queue = [];
+
+    function showError(msg) {
+        errorEl.textContent = msg || '';
+        errorEl.classList.toggle('d-none', !msg);
+        successEl.classList.add('d-none');
+    }
+
+    function showSuccess(msg) {
+        successEl.textContent = msg || '';
+        successEl.classList.toggle('d-none', !msg);
+        errorEl.classList.add('d-none');
+    }
+
+    function showFolderError(msg) {
+        folderError.textContent = msg || '';
+        folderError.classList.toggle('d-none', !msg);
+    }
+
+    function escapeHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function defaultLabelFromFilename(filename) {
+        const name = String(filename || '').split(/[/\\]/).pop() || '';
+        const stem = name.includes('.') ? name.slice(0, name.lastIndexOf('.')) : name;
+        const cleaned = stem.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+        return (cleaned || name || 'Untitled').slice(0, 200);
+    }
+
+    function currentFolderIdForUpload() {
+        return uploadFolderSelect.value || '';
+    }
+
+    function reloadWithFolder(folder) {
+        const params = new URLSearchParams();
+        if (folder && folder !== 'all') params.set('folder', folder);
+        const qs = params.toString();
+        window.location.href = `/staff/${staffId}/files${qs ? `?${qs}` : ''}`;
+    }
+
+    function renderQueue() {
+        uploadQueueBody.innerHTML = '';
+        queue.forEach((item) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${escapeHtml(item.file.name)}</td>
+                <td>
+                    <input type="text" class="form-control form-control-sm queue-label"
+                           maxlength="200" data-id="${item.id}"
+                           value="${escapeHtml(item.label)}"
+                           placeholder="e.g. ID copy, contract">
+                </td>
+                <td class="actions-cell">
+                    <button type="button" class="btn btn-sm btn-outline-danger queue-remove" data-id="${item.id}">Remove</button>
+                </td>`;
+            uploadQueueBody.appendChild(tr);
+        });
+        const hasItems = queue.length > 0;
+        uploadQueue.classList.toggle('is-visible', hasItems);
+        uploadBtn.disabled = !hasItems;
+        clearQueueBtn.disabled = !hasItems;
+        uploadBtn.textContent = hasItems
+            ? `Upload ${queue.length} file${queue.length === 1 ? '' : 's'}`
+            : 'Upload selected';
+    }
+
+    function addFiles(fileList) {
+        Array.from(fileList || []).forEach((file) => {
+            queue.push({
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                file,
+                label: defaultLabelFromFilename(file.name),
+            });
+        });
+        renderQueue();
+    }
+
+    fileInput.addEventListener('change', () => {
+        showError('');
+        showSuccess('');
+        if (fileInput.files && fileInput.files.length) {
+            addFiles(fileInput.files);
+        }
+        fileInput.value = '';
+    });
+
+    uploadQueueBody.addEventListener('input', (e) => {
+        const input = e.target.closest('.queue-label');
+        if (!input) return;
+        const item = queue.find((q) => q.id === input.getAttribute('data-id'));
+        if (item) item.label = input.value;
+    });
+
+    uploadQueueBody.addEventListener('click', (e) => {
+        const btn = e.target.closest('.queue-remove');
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        queue = queue.filter((q) => q.id !== id);
+        renderQueue();
+    });
+
+    clearQueueBtn.addEventListener('click', () => {
+        queue = [];
+        renderQueue();
+        showError('');
+        showSuccess('');
+    });
+
+    applyAllLabelBtn.addEventListener('click', () => {
+        const label = (applyAllLabel.value || '').trim();
+        queue.forEach((item) => { item.label = label || defaultLabelFromFilename(item.file.name); });
+        renderQueue();
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+        if (!queue.length) {
+            showError('Choose one or more files to upload');
+            return;
+        }
+        showError('');
+        showSuccess('');
+        const fd = new FormData();
+        queue.forEach((item) => {
+            fd.append('files', item.file);
+            fd.append('labels', item.label || '');
+        });
+        const folderId = currentFolderIdForUpload();
+        if (folderId) fd.append('folder_id', folderId);
+        uploadBtn.disabled = true;
+        try {
+            const res = await fetch(`/staff/api/${staffId}/files`, {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                showError(data.error || 'Upload failed');
+                uploadBtn.disabled = false;
+                return;
+            }
+            reloadWithFolder(folderId || folderFilter || 'all');
+        } catch (err) {
+            showError('Upload failed. Please try again.');
+            uploadBtn.disabled = false;
+        }
+    });
+
+    createFolderBtn.addEventListener('click', async () => {
+        const name = (newFolderName.value || '').trim();
+        showFolderError('');
+        if (!name) {
+            showFolderError('Folder name is required');
+            return;
+        }
+        createFolderBtn.disabled = true;
+        try {
+            const res = await fetch(`/staff/api/${staffId}/folders`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ name }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                showFolderError(data.error || 'Could not create folder');
+                return;
+            }
+            reloadWithFolder(String(data.folder.id));
+        } catch (err) {
+            showFolderError('Could not create folder');
+        } finally {
+            createFolderBtn.disabled = false;
+        }
+    });
+
+    newFolderName.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            createFolderBtn.click();
+        }
+    });
+
+    if (renameFolderBtn) {
+        renameFolderBtn.addEventListener('click', async () => {
+            if (!folderFilter || folderFilter === 'all' || folderFilter === 'unfiled') return;
+            const name = (renameFolderInput.value || '').trim();
+            showFolderError('');
+            if (!name) {
+                showFolderError('Folder name is required');
+                return;
+            }
+            renameFolderBtn.disabled = true;
+            try {
+                const res = await fetch(`/staff/api/folders/${folderFilter}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ name }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    showFolderError(data.error || 'Could not rename folder');
+                    return;
+                }
+                reloadWithFolder(String(data.folder.id));
+            } catch (err) {
+                showFolderError('Could not rename folder');
+            } finally {
+                renameFolderBtn.disabled = false;
+            }
+        });
+    }
+
+    if (deleteFolderBtn) {
+        deleteFolderBtn.addEventListener('click', async () => {
+            if (!folderFilter || folderFilter === 'all' || folderFilter === 'unfiled') return;
+            if (!confirm('Delete this folder? Files will move to Unfiled.')) return;
+            showFolderError('');
+            deleteFolderBtn.disabled = true;
+            try {
+                const res = await fetch(`/staff/api/folders/${folderFilter}/delete`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    showFolderError(data.error || 'Could not delete folder');
+                    return;
+                }
+                reloadWithFolder('unfiled');
+            } catch (err) {
+                showFolderError('Could not delete folder');
+            } finally {
+                deleteFolderBtn.disabled = false;
+            }
+        });
+    }
+
+    function openPreviewFromRow(row) {
+        if (!row || !previewModal) return;
+        const docId = row.getAttribute('data-doc-id');
+        const filename = row.getAttribute('data-filename') || 'Preview';
+        const label = row.getAttribute('data-label') || '';
+        const isImage = row.getAttribute('data-is-image') === '1';
+        const isPdf = row.getAttribute('data-is-pdf') === '1';
+        const viewUrl = `/staff/files/${docId}/download`;
+        const downloadUrl = `${viewUrl}?download=1`;
+
+        previewTitle.textContent = label ? `${filename} — ${label}` : filename;
+        previewDownload.href = downloadUrl;
+        previewBody.innerHTML = '';
+
+        if (isImage) {
+            const img = document.createElement('img');
+            img.src = viewUrl;
+            img.alt = filename;
+            previewBody.appendChild(img);
+        } else if (isPdf) {
+            const iframe = document.createElement('iframe');
+            iframe.src = viewUrl;
+            iframe.title = filename;
+            previewBody.appendChild(iframe);
+        } else {
+            previewBody.innerHTML = `
+                <div class="p-4 text-center">
+                    <p class="mb-2">No in-app preview for this file type.</p>
+                    <a class="btn btn-dark" style="border-radius:0;" href="${downloadUrl}">Download to open</a>
+                </div>`;
+        }
+        previewModal.show();
+    }
+
+    document.getElementById('staffFilesList').addEventListener('change', async function (e) {
+        const select = e.target.closest('.move-folder-select');
+        if (!select) return;
+        const docId = select.getAttribute('data-doc-id');
+        const folderId = select.value || null;
+        try {
+            const res = await fetch(`/staff/files/${docId}/move`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ folder_id: folderId }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                alert(data.error || 'Could not move file');
+                return;
+            }
+            reloadWithFolder(folderFilter || 'all');
+        } catch (err) {
+            alert('Could not move file');
+        }
+    });
+
+    document.getElementById('staffFilesList').addEventListener('click', async function (e) {
+        const previewBtn = e.target.closest('.preview-doc-btn');
+        if (previewBtn) {
+            openPreviewFromRow(previewBtn.closest('tr'));
+            return;
+        }
+
+        const btn = e.target.closest('.delete-doc-btn');
+        if (!btn) return;
+        const docId = btn.getAttribute('data-doc-id');
+        if (!confirm('Delete this file?')) return;
+        try {
+            const res = await fetch(`/staff/files/${docId}/delete`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                alert('Could not delete file');
+                return;
+            }
+            reloadWithFolder(folderFilter || 'all');
+        } catch (err) {
+            alert('Could not delete file');
+        }
+    });
+
+    async function moveDocToFolder(docId, folderKey) {
+        const folderId = (folderKey === 'unfiled' || folderKey === 'all' || !folderKey) ? null : folderKey;
+        const res = await fetch(`/staff/files/${docId}/move`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ folder_id: folderId }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Could not move file');
+        }
+    }
+
+    async function uploadFilesToFolder(fileList, folderKey) {
+        const files = Array.from(fileList || []);
+        if (!files.length) return;
+        const fd = new FormData();
+        files.forEach((file) => {
+            fd.append('files', file);
+            fd.append('labels', defaultLabelFromFilename(file.name));
+        });
+        if (folderKey && folderKey !== 'unfiled' && folderKey !== 'all') {
+            fd.append('folder_id', folderKey);
+        }
+        const res = await fetch(`/staff/api/${staffId}/files`, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Upload failed');
+        }
+        return data;
+    }
+
+    // Drag existing rows onto folders, or drop OS files onto folders
+    document.getElementById('staffFilesList').addEventListener('dragstart', (e) => {
+        const row = e.target.closest('tr.file-row');
+        if (!row) return;
+        if (e.target.closest('button, a, select, input')) {
+            e.preventDefault();
+            return;
+        }
+        const docId = row.getAttribute('data-doc-id');
+        e.dataTransfer.setData('application/x-staff-doc-id', docId);
+        e.dataTransfer.setData('text/plain', docId);
+        e.dataTransfer.effectAllowed = 'move';
+        row.classList.add('dragging');
+    });
+
+    document.getElementById('staffFilesList').addEventListener('dragend', (e) => {
+        const row = e.target.closest('tr.file-row');
+        if (row) row.classList.remove('dragging');
+        document.querySelectorAll('.folder-chip.drag-over').forEach((el) => el.classList.remove('drag-over'));
+    });
+
+    const folderBar = document.getElementById('folderBar');
+    folderBar.addEventListener('dragover', (e) => {
+        const chip = e.target.closest('.folder-chip.drop-target');
+        if (!chip) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = e.dataTransfer.types.includes('Files') ? 'copy' : 'move';
+        chip.classList.add('drag-over');
+    });
+
+    folderBar.addEventListener('dragleave', (e) => {
+        const chip = e.target.closest('.folder-chip.drop-target');
+        if (!chip) return;
+        if (!chip.contains(e.relatedTarget)) {
+            chip.classList.remove('drag-over');
+        }
+    });
+
+    folderBar.addEventListener('drop', async (e) => {
+        const chip = e.target.closest('.folder-chip.drop-target');
+        if (!chip) return;
+        e.preventDefault();
+        chip.classList.remove('drag-over');
+        const folderKey = chip.getAttribute('data-folder');
+
+        try {
+            if (e.dataTransfer.files && e.dataTransfer.files.length) {
+                showFolderError('');
+                await uploadFilesToFolder(e.dataTransfer.files, folderKey);
+                reloadWithFolder(folderKey === 'unfiled' ? 'unfiled' : (folderKey || 'all'));
+                return;
+            }
+
+            const docId = e.dataTransfer.getData('application/x-staff-doc-id')
+                || e.dataTransfer.getData('text/plain');
+            if (!docId) return;
+            await moveDocToFolder(docId, folderKey);
+            reloadWithFolder(folderFilter || 'all');
+        } catch (err) {
+            showFolderError(err.message || 'Drop failed');
+        }
+    });
+
+    // Prevent chip navigation when dropping
+    folderBar.addEventListener('click', (e) => {
+        if (e.target.closest('.folder-chip.drag-over')) {
+            e.preventDefault();
+        }
+    });
+
+    if (previewModalEl) {
+        previewModalEl.addEventListener('hidden.bs.modal', () => {
+            previewBody.innerHTML = '';
+        });
+    }
+})();
+</script>
+{% endblock %}

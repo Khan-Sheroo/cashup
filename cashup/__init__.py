@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect, text
+from pathlib import Path
 
 db = SQLAlchemy()
 
@@ -24,6 +25,15 @@ def _ensure_schema(app):
                         'DEFAULT 0 NOT NULL'
                     ))
 
+        if 'staff_document' in tables:
+            columns = {c['name'] for c in inspector.get_columns('staff_document')}
+            if 'folder_id' not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text(
+                        'ALTER TABLE staff_document ADD COLUMN folder_id INTEGER '
+                        'REFERENCES staff_folder(id)'
+                    ))
+
 
 def create_app(config_name='development'):
     """Application factory pattern"""
@@ -33,6 +43,10 @@ def create_app(config_name='development'):
     app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cashup.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    upload_root = Path(app.root_path).parent / 'uploads'
+    app.config['UPLOAD_FOLDER'] = str(upload_root)
+    app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32 MB total per request
+    upload_root.mkdir(parents=True, exist_ok=True)
     
     # Initialize extensions
     db.init_app(app)

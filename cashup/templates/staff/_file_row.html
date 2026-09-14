@@ -1,0 +1,40 @@
+<tr class="file-row"
+    draggable="true"
+    data-doc-id="{{ doc.id }}"
+    data-filename="{{ doc.original_filename }}"
+    data-label="{{ doc.label or '' }}"
+    data-folder-id="{{ doc.folder_id or '' }}"
+    data-is-image="{{ '1' if doc.is_image() else '0' }}"
+    data-is-pdf="{{ '1' if doc.is_pdf() else '0' }}">
+    <td>
+        {% if doc.is_image() %}
+        <button type="button" class="btn p-0 border-0 preview-doc-btn" data-doc-id="{{ doc.id }}" title="Preview">
+            <img class="staff-files-thumb"
+                 src="{{ url_for('staff.download_staff_file', doc_id=doc.id) }}"
+                 alt="">
+        </button>
+        {% else %}
+        <span class="text-muted small">File</span>
+        {% endif %}
+    </td>
+    <td>{{ doc.original_filename }}</td>
+    <td>{{ doc.label or '—' }}</td>
+    <td>{{ doc.folder.name if doc.folder else 'Unfiled' }}</td>
+    <td>{{ doc.uploaded_at.strftime('%Y-%m-%d %H:%M') if doc.uploaded_at else '—' }}</td>
+    <td class="actions-cell">
+        <div class="btn-row">
+            <select class="form-select form-select-sm move-folder-select" data-doc-id="{{ doc.id }}" title="Move to folder">
+                <option value="" {% if not doc.folder_id %}selected{% endif %}>Unfiled</option>
+                {% for folder in folders %}
+                <option value="{{ folder.id }}" {% if doc.folder_id == folder.id %}selected{% endif %}>{{ folder.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="btn btn-sm btn-outline-dark preview-doc-btn"
+                    data-doc-id="{{ doc.id }}">Preview</button>
+            <a class="btn btn-sm btn-outline-dark"
+               href="{{ url_for('staff.download_staff_file', doc_id=doc.id, download=1) }}">Download</a>
+            <button type="button" class="btn btn-sm btn-outline-danger delete-doc-btn"
+                    data-doc-id="{{ doc.id }}">Delete</button>
+        </div>
+    </td>
+</tr>

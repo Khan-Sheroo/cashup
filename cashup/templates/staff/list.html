@@ -2,22 +2,119 @@
 
 {% block title %}Staff Management - CashUp{% endblock %}
 
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>Staff Management</h1>
-    <a href="{{ url_for('staff.add_staff') }}" class="btn btn-primary">Add Staff Member</a>
-</div>
+{% block extra_css %}
+<style>
+    .work-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #333;
+    }
+    .work-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .work-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem 1.25rem;
+    }
+    .work-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .sheet-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        background: #fff;
+    }
+    .sheet-table th,
+    .sheet-table td {
+        border: 1px solid #333;
+        padding: 0.35rem 0.5rem;
+        vertical-align: middle;
+    }
+    .sheet-table thead th {
+        background: #f1f1f1;
+        font-weight: 700;
+        text-align: center;
+    }
+    .sheet-table tbody td {
+        text-align: left;
+    }
+    .sheet-table .col-center {
+        text-align: center;
+    }
+    .sheet-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 2px solid #111;
+    }
+    .sheet-actions .btn,
+    .work-sheet .btn {
+        border-radius: 0;
+        border-width: 1px;
+    }
+    .status-active { font-weight: 600; }
+    .status-inactive { color: #666; }
+    .role-waiter { font-weight: 600; }
+    .btn-row {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.35rem;
+        white-space: nowrap;
+    }
+    .btn-row form {
+        display: inline;
+        margin: 0;
+        flex: 0 0 auto;
+    }
+    .btn-row .btn {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 0.2rem 0.45rem;
+        font-size: 0.8rem;
+        line-height: 1.25;
+    }
+    .sheet-table td.actions-cell {
+        white-space: nowrap;
+        overflow-x: auto;
+        max-width: 28rem;
+    }
+</style>
+{% endblock %}
 
-<div class="card">
-    <div class="card-body">
-        <table class="table table-striped">
+{% block content %}
+<div class="work-sheet">
+    <h1>Staff Management</h1>
+    <div class="sheet-meta">
+        <small>{{ staff_list|length }} staff member{{ '' if staff_list|length == 1 else 's' }}</small>
+        <a href="{{ url_for('staff.add_staff') }}" class="btn btn-dark btn-sm">Add Staff Member</a>
+    </div>
+
+    <h2>Staff Directory</h2>
+    <div class="table-responsive">
+        <table class="sheet-table">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Created</th>
+                    <th style="width: 6%;">ID</th>
+                    <th style="width: 22%;">Name</th>
+                    <th style="width: 12%;">Role</th>
+                    <th style="width: 12%;">Status</th>
+                    <th style="width: 12%;">Created</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -25,37 +122,40 @@
                 {% if staff_list %}
                     {% for staff in staff_list %}
                     <tr>
-                        <td>{{ staff.id }}</td>
+                        <td class="col-center">{{ staff.id }}</td>
                         <td>{{ staff.name }}</td>
-                        <td>
+                        <td class="col-center">
                             {% if staff.is_waiter %}
-                                <span class="badge bg-info text-dark">Waiter</span>
+                                <span class="role-waiter">Waiter</span>
                             {% else %}
-                                <span class="badge bg-light text-dark">Staff</span>
+                                Staff
                             {% endif %}
                         </td>
-                        <td>
+                        <td class="col-center">
                             {% if staff.active %}
-                                <span class="badge bg-success">Active</span>
+                                <span class="status-active">Active</span>
                             {% else %}
-                                <span class="badge bg-secondary">Inactive</span>
+                                <span class="status-inactive">Inactive</span>
                             {% endif %}
                         </td>
-                        <td>{{ staff.created_at.strftime('%Y-%m-%d') }}</td>
-                        <td class="d-flex gap-1 flex-wrap">
-                            <form method="POST" action="{{ url_for('staff.toggle_waiter_status', staff_id=staff.id) }}" style="display: inline;">
-                                <button type="submit" class="btn btn-sm btn-outline-info">
-                                    {{ 'Unmark Waiter' if staff.is_waiter else 'Mark Waiter' }}
-                                </button>
-                            </form>
-                            <form method="POST" action="{{ url_for('staff.toggle_staff_status', staff_id=staff.id) }}" style="display: inline;">
-                                <button type="submit" class="btn btn-sm btn-{{ 'secondary' if staff.active else 'success' }}">
-                                    {{ 'Deactivate' if staff.active else 'Activate' }}
-                                </button>
-                            </form>
-                            <form method="POST" action="{{ url_for('staff.delete_staff', staff_id=staff.id) }}" style="display: inline;" onsubmit="return confirm('Delete {{ staff.name }}? This also removes their cash-ups.');">
-                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                            </form>
+                        <td class="col-center">{{ staff.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td class="actions-cell">
+                            <div class="btn-row">
+                                <a href="{{ url_for('staff.staff_files', staff_id=staff.id) }}" class="btn btn-sm btn-outline-dark">Files</a>
+                                <form method="POST" action="{{ url_for('staff.toggle_waiter_status', staff_id=staff.id) }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-dark">
+                                        {{ 'Unmark Waiter' if staff.is_waiter else 'Mark Waiter' }}
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('staff.toggle_staff_status', staff_id=staff.id) }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-dark">
+                                        {{ 'Deactivate' if staff.active else 'Activate' }}
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('staff.delete_staff', staff_id=staff.id) }}" onsubmit="return confirm('Delete {{ staff.name }}? This also removes their cash-ups and files.');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -66,6 +166,11 @@
                 {% endif %}
             </tbody>
         </table>
+    </div>
+
+    <div class="sheet-actions">
+        <a href="{{ url_for('staff.add_staff') }}" class="btn btn-dark">Add Staff Member</a>
+        <a href="{{ url_for('cashup.new_cashup') }}" class="btn btn-outline-dark">Back to Cash-Up</a>
     </div>
 </div>
 {% endblock %}
