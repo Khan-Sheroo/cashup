@@ -23,12 +23,6 @@
     <td>{{ doc.uploaded_at.strftime('%Y-%m-%d %H:%M') if doc.uploaded_at else '—' }}</td>
     <td class="actions-cell">
         <div class="btn-row">
-            <select class="form-select form-select-sm move-folder-select" data-doc-id="{{ doc.id }}" title="Move to folder">
-                <option value="" {% if not doc.folder_id %}selected{% endif %}>Unfiled</option>
-                {% for folder in folders %}
-                <option value="{{ folder.id }}" {% if doc.folder_id == folder.id %}selected{% endif %}>{{ folder.name }}</option>
-                {% endfor %}
-            </select>
             <button type="button" class="btn btn-sm btn-outline-dark preview-doc-btn"
                     data-doc-id="{{ doc.id }}">Preview</button>
             <a class="btn btn-sm btn-outline-dark"
