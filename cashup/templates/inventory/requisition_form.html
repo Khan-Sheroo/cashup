@@ -1,0 +1,63 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}New Requisition - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet" style="max-width: 60rem;">
+    <h1>New Requisition</h1>
+    <div class="sheet-meta">
+        <small>Quantities in each item's count unit. "In Store" shows current Store Room stock.</small>
+    </div>
+    <form method="POST">
+        <div class="field-grid">
+            <div class="settings-field">
+                <div class="label">Req No.</div>
+                <input type="text" name="reference" value="{{ request.form.get('reference', '') }}" placeholder="e.g. 2458">
+            </div>
+            <div class="settings-field">
+                <div class="label">Date</div>
+                <input type="date" name="req_date" value="{{ request.form.get('req_date') or today.isoformat() }}">
+            </div>
+            <div class="settings-field">
+                <div class="label">From</div>
+                <select name="from_location_id">
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}" {% if store and loc.id == store.id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="settings-field">
+                <div class="label">To</div>
+                <select name="to_location_id">
+                    {% for loc in locations if loc.kind != 'store' %}
+                    <option value="{{ loc.id }}" {% if request.form.get('to_location_id')|int == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="settings-field">
+                <div class="label">Note</div>
+                <input type="text" name="note" value="{{ request.form.get('note', '') }}" placeholder="Optional">
+            </div>
+        </div>
+
+        <table class="sheet-table">
+            <thead>
+                <tr><th>Item</th><th style="width:12%">Count Unit</th><th style="width:12%">In Store</th><th style="width:16%">Quantity</th><th style="width:6%"></th></tr>
+            </thead>
+            <tbody id="lines-body"></tbody>
+        </table>
+        <button type="button" class="btn btn-outline-dark btn-sm mt-2" id="add-line">+ Add Line</button>
+
+        <div class="sheet-actions">
+            <button type="submit" class="btn btn-dark">Save &amp; Transfer Stock</button>
+            <a href="{{ url_for('inventory.requisitions') }}" class="btn btn-outline-dark">Cancel</a>
+        </div>
+    </form>
+</div>
+
+{% include "inventory/_item_line_template.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "inventory/_item_line_js.html" %}
+{% endblock %}

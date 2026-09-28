@@ -1,0 +1,38 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Requisition {{ req.reference or req.id }} - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet" style="max-width: 50rem;">
+    <h1>Requisition {{ req.reference or req.id }}</h1>
+    <div class="sheet-meta">
+        <small>{{ req.req_date.strftime('%d/%m/%Y') }} — {{ req.from_location.name }} → {{ req.to_location.name }}{% if req.note %} — {{ req.note }}{% endif %}</small>
+        <div class="d-flex gap-2">
+            <button onclick="window.print()" class="btn btn-outline-dark btn-sm">Print</button>
+            <a href="{{ url_for('inventory.requisitions') }}" class="btn btn-outline-dark btn-sm">All Requisitions</a>
+        </div>
+    </div>
+    <table class="sheet-table">
+        <thead><tr><th>Item</th><th>Quantity</th><th>Count Unit</th><th>Value</th></tr></thead>
+        <tbody>
+            {% set ns = namespace(total=0) %}
+            {% for line in req.lines %}
+            {% set value = line.item.to_base_units(line.quantity) * line.item.cost_per_unit() %}
+            {% set ns.total = ns.total + value %}
+            <tr>
+                <td>{{ line.item.name }}</td>
+                <td class="col-right">{{ line.quantity|qty }}</td>
+                <td class="col-center">{{ line.item.count_unit_label() }}</td>
+                <td class="col-right">{{ value|money }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot><tr><td colspan="3" class="col-right fw-bold">Total</td><td class="col-right fw-bold">{{ ns.total|money }}</td></tr></tfoot>
+    </table>
+    <div class="sheet-actions">
+        <form method="POST" action="{{ url_for('inventory.delete_requisition', req_id=req.id) }}" onsubmit="return confirm('Delete this requisition and move the stock back?');">
+            <button class="btn btn-outline-danger">Delete</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

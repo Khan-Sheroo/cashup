@@ -71,6 +71,21 @@
                         <a class="nav-link" href="{{ url_for('staff.list_staff') }}">Staff</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('recipes.list_recipes') }}">Recipes</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Inventory</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.stock') }}">Live Stock</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.invoices') }}">Invoices</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.requisitions') }}">Requisitions</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.sales') }}">Sales Mix</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.stocktakes') }}">Stock Takes</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.adjust') }}">Manual Stock Entry</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('settings.settings_page') }}">Settings</a>
                     </li>
                 </ul>

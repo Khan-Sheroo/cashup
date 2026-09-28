@@ -1,0 +1,42 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Requisitions - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>Requisitions</h1>
+    <div class="sheet-meta">
+        <small>Stock issued from the Store Room to the Bar or Kitchen.</small>
+        <a href="{{ url_for('inventory.new_requisition') }}" class="btn btn-dark btn-sm">New Requisition</a>
+    </div>
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr><th>Date</th><th>Req No.</th><th>From</th><th>To</th><th>Lines</th><th>Note</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for req in requisitions %}
+                <tr>
+                    <td class="col-center">{{ req.req_date.strftime('%d/%m/%Y') }}</td>
+                    <td class="col-center">{{ req.reference or req.id }}</td>
+                    <td>{{ req.from_location.name }}</td>
+                    <td>{{ req.to_location.name }}</td>
+                    <td class="col-center">{{ req.lines|length }}</td>
+                    <td>{{ req.note or '' }}</td>
+                    <td class="col-center">
+                        <div class="btn-row justify-content-center">
+                            <a href="{{ url_for('inventory.view_requisition', req_id=req.id) }}" class="btn btn-sm btn-outline-dark">View</a>
+                            <form method="POST" action="{{ url_for('inventory.delete_requisition', req_id=req.id) }}" onsubmit="return confirm('Delete this requisition and move the stock back?');">
+                                <button class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center muted">No requisitions yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

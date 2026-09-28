@@ -1,0 +1,60 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Manual Stock Entry - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet" style="max-width: 56rem;">
+    <h1>Manual Stock Entry</h1>
+    <div class="sheet-meta">
+        <small>Quantities are in each item's count unit (e.g. Bot, Glass, ml). Use "Opening Balance" to set starting stock.</small>
+    </div>
+
+    <form method="POST">
+        <div class="field-grid">
+            <div class="settings-field">
+                <div class="label">Location *</div>
+                <select name="location_id" required>
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}" {% if request.form.get('location_id')|int == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="settings-field">
+                <div class="label">Type *</div>
+                <select name="kind">
+                    {% for value, label in adjust_kinds %}
+                    <option value="{{ value }}" {% if request.form.get('kind') == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="settings-field">
+                <div class="label">Date</div>
+                <input type="date" name="movement_date" value="{{ request.form.get('movement_date') or today.isoformat() }}">
+            </div>
+            <div class="settings-field">
+                <div class="label">Note</div>
+                <input type="text" name="note" value="{{ request.form.get('note', '') }}" placeholder="Optional">
+            </div>
+        </div>
+
+        <table class="sheet-table">
+            <thead>
+                <tr><th>Item</th><th style="width:14%">Count Unit</th><th style="width:18%">Quantity</th><th style="width:6%"></th></tr>
+            </thead>
+            <tbody id="lines-body"></tbody>
+        </table>
+        <button type="button" class="btn btn-outline-dark btn-sm mt-2" id="add-line">+ Add Line</button>
+
+        <div class="sheet-actions">
+            <button type="submit" class="btn btn-dark">Post Entries</button>
+            <a href="{{ url_for('inventory.stock') }}" class="btn btn-outline-dark">Cancel</a>
+        </div>
+    </form>
+</div>
+
+{% include "inventory/_item_line_template.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "inventory/_item_line_js.html" %}
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Sales Mix - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>Sales Mix</h1>
+    <div class="sheet-meta">
+        <small>Upload the POS "Item Sales" PDF (or a CSV with Item + Quantity). Each POS item is mapped to a recipe once; confirming deducts the recipe ingredients from stock.</small>
+    </div>
+
+    <form method="POST" action="{{ url_for('inventory.upload_sales') }}" enctype="multipart/form-data" class="upload-box">
+        <input type="file" name="file" accept=".pdf,.csv,.txt" required class="form-control form-control-sm" style="border-radius:0;">
+        <span class="small muted">CSV only — period:</span>
+        <input type="date" name="start_date" class="form-control form-control-sm" style="width:auto;border-radius:0;">
+        <input type="date" name="end_date" class="form-control form-control-sm" style="width:auto;border-radius:0;">
+        <button type="submit" class="btn btn-dark btn-sm">Upload &amp; Read</button>
+    </form>
+
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr><th>Period</th><th>File</th><th>Items</th><th>Units Sold</th><th>Net Sales</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for imp in imports %}
+                <tr>
+                    <td class="col-center">{{ imp.start_date.strftime('%d/%m/%Y') }} – {{ imp.end_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ imp.original_filename or '' }}</td>
+                    <td class="col-center">{{ imp.lines|length }}</td>
+                    <td class="col-right">{{ imp.lines|sum(attribute='quantity')|qty }}</td>
+                    <td class="col-right">{{ imp.lines|selectattr('net')|sum(attribute='net')|money }}</td>
+                    <td class="col-center"><span class="status-pill status-{{ imp.status }}">{{ imp.status }}</span></td>
+                    <td class="col-center">
+                        <div class="btn-row justify-content-center">
+                            <a href="{{ url_for('inventory.review_sales', import_id=imp.id) }}" class="btn btn-sm btn-outline-dark">{{ 'View' if imp.status == 'confirmed' else 'Map & Confirm' }}</a>
+                            <form method="POST" action="{{ url_for('inventory.delete_sales', import_id=imp.id) }}" onsubmit="return confirm('Delete this sales import{{ ' and its stock usage' if imp.status == 'confirmed' }}?');">
+                                <button class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center muted">No sales uploaded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

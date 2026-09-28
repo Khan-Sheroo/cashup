@@ -1,0 +1,292 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Invoice Review - CashUp{% endblock %}
+
+{% block inv_css %}
+<style>
+    .inv-lines td.desc-cell { min-width: 14rem; }
+    .inv-lines td.item-cell { min-width: 13rem; }
+    .inv-lines tr.skipped td { opacity: 0.45; }
+    .inv-lines tr.unmatched td.item-cell { background: #fff4d6; }
+    .qty-wrap { display: flex; gap: 0; min-width: 8.5rem; }
+    .qty-wrap input { flex: 1 1 auto; min-width: 3.5rem; }
+    .qty-wrap select { flex: 0 0 4.2rem; width: 4.2rem !important; border-left: none !important; padding: 0.2rem 0.15rem !important; }
+    .inv-lines input.l-units[readonly] { background: #f1f1f1; color: #555; }
+</style>
+{% endblock %}
+
+{% macro item_options(selected_id) %}
+    <option value="">+ New item (added on confirm)</option>
+    {% set ns = namespace(cat=None, open=False) %}
+    {% for item in items %}
+        {% if loop.first or item.category != ns.cat %}
+            {% if ns.open %}</optgroup>{% endif %}
+            {% set ns.cat = item.category %}
+            <optgroup label="{{ item.category or 'Uncategorised' }}">
+            {% set ns.open = True %}
+        {% endif %}
+        <option value="{{ item.id }}" data-unit="{{ item.unit }}" data-pack="{{ item.pack_size|float }}"
+                {% if item.id == selected_id %}selected{% endif %}>{{ item.name }}</option>
+    {% endfor %}
+    {% if ns.open %}</optgroup>{% endif %}
+{% endmacro %}
+
+{% macro qty_unit_options(selected) %}
+    {% for value, label in qty_units %}
+    <option value="{{ value }}" {% if value == (selected or 'unit') %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+{% endmacro %}
+
+{% block inv_content %}
+{% set locked = invoice.status == 'confirmed' %}
+<div class="work-sheet">
+    <h1>{{ 'Invoice' if locked else 'Review Invoice' }} {{ invoice.reference or '' }}</h1>
+    <div class="sheet-meta">
+        <small>
+            {% if locked %}Confirmed {{ invoice.confirmed_at.strftime('%d/%m/%Y %H:%M') if invoice.confirmed_at }} — stock received into {{ invoice.location.name if invoice.location }}.
+            {% else %}Match each line to an item and say how many recipe units one invoice quantity is (e.g. 1 bag of flour = 1000 g). Lines left as "+ New item" are added to your inventory on confirm. Matches are remembered for next time.{% endif %}
+        </small>
+        <div class="d-flex gap-2">
+            {% if invoice.stored_filename %}<a href="{{ url_for('inventory.invoice_file', invoice_id=invoice.id) }}" target="_blank" class="btn btn-outline-dark btn-sm">Open File</a>{% endif %}
+            <a href="{{ url_for('inventory.invoices') }}" class="btn btn-outline-dark btn-sm">All Invoices</a>
+        </div>
+    </div>
+
+    <form method="POST" id="invoice-form">
+        <fieldset {% if locked %}disabled{% endif %}>
+        <div class="field-grid">
+            <div class="settings-field">
+                <div class="label">Supplier</div>
+                <input type="text" name="supplier" list="supplier-list" value="{{ invoice.supplier.name if invoice.supplier else '' }}">
+                <datalist id="supplier-list">{% for s in suppliers %}<option value="{{ s.name }}">{% endfor %}</datalist>
+            </div>
+            <div class="settings-field">
+                <div class="label">Reference / PO No.</div>
+                <input type="text" name="reference" value="{{ invoice.reference or '' }}">
+            </div>
+            <div class="settings-field">
+                <div class="label">Date</div>
+                <input type="date" name="invoice_date" value="{{ invoice.invoice_date.isoformat() }}">
+            </div>
+            <div class="settings-field">
+                <div class="label">Receive Into</div>
+                <select name="location_id">
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}" {% if loc.id == invoice.location_id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="sheet-table inv-lines">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th style="width:11%">Qty</th>
+                        <th style="width:8%">Price per Qty</th>
+                        <th style="width:8%">Amount</th>
+                        <th>Item</th>
+                        <th style="width:9%">Recipe Units per Qty</th>
+                        <th style="width:10%">Received</th>
+                        <th style="width:5%">Skip</th>
+                        <th style="width:4%"></th>
+                    </tr>
+                </thead>
+                <tbody id="lines-body">
+                    {% for line in invoice.lines %}
+                    {% set key = line.id|string %}
+                    <tr class="line-row {{ 'skipped' if line.skip }} {{ 'unmatched' if not line.item_id and not line.skip }}">
+                        <td class="desc-cell">
+                            <input type="hidden" name="row_key" value="{{ key }}">
+                            <input type="text" name="desc_{{ key }}" value="{{ line.description }}">
+                            {% if line.tax_label %}<small class="muted">Tax: {{ line.tax_label }}</small>{% endif %}
+                        </td>
+                        <td>
+                            <div class="qty-wrap">
+                                <input type="number" step="any" name="qty_{{ key }}" class="numeric-input l-qty" value="{{ line.quantity|float }}">
+                                <select name="qtyunit_{{ key }}" class="l-qtyunit" title="Quantity unit">{{ qty_unit_options(line.qty_unit) }}</select>
+                            </div>
+                        </td>
+                        <td><input type="number" step="any" name="price_{{ key }}" class="numeric-input l-price" value="{{ line.unit_price|float }}"></td>
+                        <td><input type="number" step="any" name="amount_{{ key }}" class="numeric-input l-amount" value="{{ line.amount|float }}"></td>
+                        <td class="item-cell"><select name="item_{{ key }}" class="l-item">{{ item_options(line.item_id) }}</select></td>
+                        <td><input type="number" step="any" name="units_{{ key }}" class="numeric-input l-units" value="{{ line.units_per_line|float if line.units_per_line is not none else '' }}"></td>
+                        <td class="col-right l-received muted"></td>
+                        <td class="col-center"><input type="checkbox" name="skip_{{ key }}" class="l-skip" {% if line.skip %}checked{% endif %}></td>
+                        <td class="col-center"><button type="button" class="btn btn-sm btn-outline-danger remove-line">&times;</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="col-right fw-bold">Lines total</td>
+                        <td class="col-right fw-bold" id="lines-total">{{ invoice.lines_total()|money }}</td>
+                        <td colspan="5" class="muted small">
+                            {% if invoice.stated_total %}Document total (incl. tax): {{ invoice.stated_total|money }}{% endif %}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% if not locked %}
+        <button type="button" class="btn btn-outline-dark btn-sm mt-2" id="add-line">+ Add Line</button>
+        <div class="mt-3">
+            <label class="d-flex align-items-center gap-2 fw-bold small">
+                <input type="checkbox" name="update_cost" checked>
+                Update item cost prices from this invoice on confirm
+            </label>
+        </div>
+        {% endif %}
+        </fieldset>
+
+        <div class="sheet-actions">
+            {% if not locked %}
+            <button type="submit" name="action" value="save" class="btn btn-outline-dark">Save Draft</button>
+            <button type="submit" name="action" value="confirm" class="btn btn-dark" onclick="return confirm('Receive this stock into the selected location?');">Confirm &amp; Receive Stock</button>
+            {% endif %}
+        </div>
+    </form>
+    {% if locked %}
+    <form method="POST" action="{{ url_for('inventory.reverse_invoice', invoice_id=invoice.id) }}" onsubmit="return confirm('Remove this stock and make the invoice editable again?');" class="mt-2">
+        <button class="btn btn-outline-danger btn-sm" style="border-radius:0;">Reverse (remove stock)</button>
+    </form>
+    {% endif %}
+</div>
+
+<template id="line-template">
+    <tr class="line-row unmatched">
+        <td class="desc-cell">
+            <input type="hidden" name="row_key" value="__KEY__">
+            <input type="text" name="desc___KEY__" placeholder="Description">
+        </td>
+        <td>
+            <div class="qty-wrap">
+                <input type="number" step="any" name="qty___KEY__" class="numeric-input l-qty">
+                <select name="qtyunit___KEY__" class="l-qtyunit" title="Quantity unit">{{ qty_unit_options('unit') }}</select>
+            </div>
+        </td>
+        <td><input type="number" step="any" name="price___KEY__" class="numeric-input l-price"></td>
+        <td><input type="number" step="any" name="amount___KEY__" class="numeric-input l-amount"></td>
+        <td class="item-cell"><select name="item___KEY__" class="l-item">{{ item_options(None) }}</select></td>
+        <td><input type="number" step="any" name="units___KEY__" class="numeric-input l-units"></td>
+        <td class="col-right l-received muted"></td>
+        <td class="col-center"><input type="checkbox" name="skip___KEY__" class="l-skip"></td>
+        <td class="col-center"><button type="button" class="btn btn-sm btn-outline-danger remove-line">&times;</button></td>
+    </tr>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const currencySymbol = {{ currency_symbol|tojson }};
+    const body = document.getElementById('lines-body');
+    const template = document.getElementById('line-template');
+    const addBtn = document.getElementById('add-line');
+    let newCount = 0;
+
+    const DIMENSIONS = {
+        g: ['mass', 1], kg: ['mass', 1000], oz: ['mass', 28.3495], lb: ['mass', 453.592],
+        ml: ['volume', 1], L: ['volume', 1000], tsp: ['volume', 5], tbsp: ['volume', 15], cup: ['volume', 250]
+    };
+    function conversion(fromUnit, toUnit) {
+        const src = DIMENSIONS[fromUnit];
+        const dst = DIMENSIONS[toUnit];
+        if (!src || !dst || src[0] !== dst[0]) return null;
+        return src[1] / dst[1];
+    }
+
+    function fmt(n) { return (Math.round(n * 100) / 100).toLocaleString(); }
+
+    function recalcTotal() {
+        let total = 0;
+        body.querySelectorAll('.line-row').forEach(function (row) {
+            total += parseFloat(row.querySelector('.l-amount').value || '0') || 0;
+        });
+        document.getElementById('lines-total').textContent = currencySymbol + total.toFixed(2);
+    }
+
+    function bind(row) {
+        const qty = row.querySelector('.l-qty');
+        const price = row.querySelector('.l-price');
+        const amount = row.querySelector('.l-amount');
+        const item = row.querySelector('.l-item');
+        const units = row.querySelector('.l-units');
+        const qtyUnit = row.querySelector('.l-qtyunit');
+        const skip = row.querySelector('.l-skip');
+        const received = row.querySelector('.l-received');
+
+        function applyQtyUnit() {
+            const opt = item.options[item.selectedIndex];
+            const itemUnit = opt && opt.value ? opt.dataset.unit : '';
+            const factor = qtyUnit.value !== 'unit' && itemUnit ? conversion(qtyUnit.value, itemUnit) : null;
+            if (factor !== null) {
+                units.value = +factor.toFixed(4);
+                units.readOnly = true;
+                units.title = '1 ' + qtyUnit.value + ' = ' + units.value + ' ' + itemUnit;
+            } else {
+                if (units.readOnly) units.value = '';
+                units.readOnly = false;
+                units.title = qtyUnit.value !== 'unit' && itemUnit
+                    ? itemUnit + ' per ' + qtyUnit.value + ' (cannot convert automatically)' : '';
+                if (!units.value && opt && opt.value && qtyUnit.value === 'unit') units.value = opt.dataset.pack || 1;
+            }
+        }
+
+        function update() {
+            const opt = item.options[item.selectedIndex];
+            const unit = opt && opt.value ? opt.dataset.unit : '';
+            const q = parseFloat(qty.value || '0') || 0;
+            const u = parseFloat(units.value || '0') || 0;
+            received.textContent = opt && opt.value && u ? fmt(q * u) + ' ' + unit : '';
+            row.classList.toggle('skipped', skip.checked);
+            row.classList.toggle('unmatched', !skip.checked && !(opt && opt.value));
+        }
+        // Line amount is what was paid: changing the quantity re-prices per unit, never the total
+        function repriceFromAmount() {
+            const q = parseFloat(qty.value || '0') || 0;
+            const a = parseFloat(amount.value || '');
+            if (q > 0 && !isNaN(a)) {
+                price.value = +(a / q).toFixed(4);
+            } else if (isNaN(a)) {
+                const p = parseFloat(price.value || '0') || 0;
+                amount.value = (q * p).toFixed(2);
+            }
+            recalcTotal();
+            update();
+        }
+        function priceChanged() {
+            const q = parseFloat(qty.value || '0') || 0;
+            const p = parseFloat(price.value || '0') || 0;
+            amount.value = (q * p).toFixed(2);
+            recalcTotal();
+            update();
+        }
+        qty.addEventListener('input', repriceFromAmount);
+        price.addEventListener('input', priceChanged);
+        amount.addEventListener('input', repriceFromAmount);
+        qtyUnit.addEventListener('change', repriceFromAmount);
+        units.addEventListener('input', update);
+        skip.addEventListener('change', update);
+        item.addEventListener('change', function () { applyQtyUnit(); update(); });
+        qtyUnit.addEventListener('change', function () { applyQtyUnit(); update(); });
+        if (qtyUnit.value !== 'unit') applyQtyUnit();
+        const remove = row.querySelector('.remove-line');
+        if (remove) remove.addEventListener('click', function () { row.remove(); recalcTotal(); });
+        update();
+    }
+
+    body.querySelectorAll('.line-row').forEach(bind);
+    if (addBtn) {
+        addBtn.addEventListener('click', function () {
+            newCount += 1;
+            const html = template.innerHTML.replace(/__KEY__/g, 'new' + newCount);
+            body.insertAdjacentHTML('beforeend', html);
+            bind(body.lastElementChild);
+        });
+        if (!body.querySelector('.line-row')) addBtn.click();
+    }
+})();
+</script>
+{% endblock %}

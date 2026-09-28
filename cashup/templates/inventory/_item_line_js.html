@@ -1,0 +1,29 @@
+<script>
+(function () {
+    const body = document.getElementById('lines-body');
+    const template = document.getElementById('line-template');
+    const addBtn = document.getElementById('add-line');
+
+    function bind(row) {
+        const select = row.querySelector('.line-item');
+        const unitCell = row.querySelector('.line-unit');
+        const stockCell = row.querySelector('.line-stock');
+        function update() {
+            const opt = select.options[select.selectedIndex];
+            unitCell.textContent = opt && opt.value ? (opt.dataset.unit || '') : '';
+            if (stockCell) stockCell.textContent = opt && opt.value ? (opt.dataset.stock || '0') : '';
+        }
+        select.addEventListener('change', update);
+        row.querySelector('.remove-line').addEventListener('click', function () { row.remove(); });
+        update();
+    }
+
+    function addLine() {
+        body.appendChild(template.content.cloneNode(true));
+        bind(body.lastElementChild);
+    }
+
+    addBtn.addEventListener('click', addLine);
+    for (let i = 0; i < 5; i++) addLine();
+})();
+</script>

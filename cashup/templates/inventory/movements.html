@@ -1,0 +1,62 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}{{ item.name }} Movements - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>{{ item.name }}</h1>
+    <div class="sheet-meta">
+        <small>Counted in {{ item.count_unit_label() }} ({{ item.effective_count_factor()|qty(4) }} {{ item.unit }} each) — cost {{ currency_symbol }}{{ '%.4f'|format(item.cost_per_unit()) }} per {{ item.unit }}</small>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('recipes.edit_item', item_id=item.id) }}" class="btn btn-outline-dark btn-sm">Edit Item</a>
+            <a href="{{ url_for('inventory.stock') }}" class="btn btn-outline-dark btn-sm">Back to Stock</a>
+        </div>
+    </div>
+
+    <div class="totals-box">
+        {% for loc in locations %}
+        <div>
+            <div class="t-label">{{ loc.name }}</div>
+            <div class="t-value">{{ item.to_count_units(balances[loc.id])|qty }} <small class="muted" style="font-size:0.8rem;">{{ item.count_unit_label() }}</small></div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <h2>Movements (latest first)</h2>
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr><th>Date</th><th>Location</th><th>Type</th><th>Qty ({{ item.count_unit_label() }})</th><th>Qty ({{ item.unit }})</th><th>Value</th><th>Source / Note</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for m in movements %}
+                <tr>
+                    <td class="col-center">{{ m.movement_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ m.location.name }}</td>
+                    <td>{{ m.kind_label }}</td>
+                    <td class="col-right {{ 'txt-under' if m.quantity < 0 else 'txt-over' }}">{{ item.to_count_units(m.quantity)|qty }}</td>
+                    <td class="col-right muted">{{ m.quantity|qty }}</td>
+                    <td class="col-right">{{ (m.quantity * (m.unit_cost or 0))|money }}</td>
+                    <td>
+                        {% if m.invoice_id %}<a href="{{ url_for('inventory.review_invoice', invoice_id=m.invoice_id) }}">{{ m.note or 'Invoice' }}</a>
+                        {% elif m.requisition_id %}<a href="{{ url_for('inventory.view_requisition', req_id=m.requisition_id) }}">{{ m.note or 'Requisition' }}</a>
+                        {% elif m.sales_import_id %}<a href="{{ url_for('inventory.review_sales', import_id=m.sales_import_id) }}">{{ m.note or 'Sales' }}</a>
+                        {% elif m.stock_take_id %}<a href="{{ url_for('inventory.variance', take_id=m.stock_take_id) }}">{{ m.note or 'Stock take' }}</a>
+                        {% else %}{{ m.note or '' }}{% endif %}
+                    </td>
+                    <td class="col-center">
+                        {% if m.kind in ('manual', 'waste', 'opening') %}
+                        <form method="POST" action="{{ url_for('inventory.delete_movement', movement_id=m.id) }}" onsubmit="return confirm('Delete this entry?');">
+                            <button class="btn btn-sm btn-outline-danger" style="padding:0.1rem 0.4rem;font-size:0.78rem;">Delete</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center muted">No movements yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if recipe else 'New' }} Recipe - CashUp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .work-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #333;
+        max-width: 52rem;
+    }
+    .work-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .work-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1rem;
+    }
+    .work-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .settings-field {
+        border: 1px solid #333;
+        padding: 0.75rem 0.85rem;
+        margin-bottom: 0.75rem;
+        background: #fff;
+    }
+    .settings-field .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #555;
+        margin-bottom: 0.35rem;
+        font-weight: 700;
+    }
+    .settings-field input[type="text"],
+    .settings-field input[type="number"],
+    .settings-field textarea,
+    .settings-field select {
+        border: 1px solid #333;
+        border-radius: 0;
+        padding: 0.35rem 0.5rem;
+        background: #fff;
+        width: 100%;
+    }
+    .settings-field input:focus,
+    .settings-field textarea:focus,
+    .settings-field select:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 1px #111;
+        background: #fffef5;
+    }
+    .field-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+    }
+    @media (max-width: 576px) {
+        .field-row { grid-template-columns: 1fr; }
+    }
+    .sheet-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        background: #fff;
+        margin-bottom: 0.75rem;
+    }
+    .sheet-table th,
+    .sheet-table td {
+        border: 1px solid #333;
+        padding: 0.35rem 0.4rem;
+        vertical-align: middle;
+    }
+    .sheet-table thead th {
+        background: #f1f1f1;
+        font-weight: 700;
+        text-align: center;
+    }
+    .sheet-table select,
+    .sheet-table input {
+        border: 1px solid #333;
+        border-radius: 0;
+        padding: 0.25rem 0.35rem;
+        width: 100%;
+        background: #fff;
+    }
+    .sheet-table .col-right { text-align: right; }
+    .sheet-table .col-center { text-align: center; }
+    .totals-box {
+        border: 2px solid #111;
+        padding: 0.85rem 1rem;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+    }
+    @media (max-width: 576px) {
+        .totals-box { grid-template-columns: 1fr 1fr; }
+    }
+    .totals-box .t-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #555;
+        font-weight: 700;
+    }
+    .totals-box .t-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+    .margin-neg { color: #721c24; }
+    .sheet-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 2px solid #111;
+    }
+    .sheet-actions .btn {
+        border-radius: 0;
+        border-width: 1px;
+    }
+    .btn-add-line {
+        border-radius: 0;
+        border-width: 1px;
+    }
+    .empty-hint {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="work-sheet">
+    <h1>{{ 'Edit Recipe' if recipe else 'New Recipe' }}</h1>
+    <div class="sheet-meta">
+        <small>Sale price is inclusive. GP &amp; margin use net after 15% VAT + 10% service.</small>
+    </div>
+
+    {% if not items %}
+    <div class="alert alert-warning">
+        No active items yet. <a href="{{ url_for('recipes.add_item') }}">Add items</a> before building a recipe.
+    </div>
+    {% endif %}
+
+    <form method="POST" id="recipe-form">
+        <h2>Recipe</h2>
+        <div class="settings-field">
+            <div class="label">Name *</div>
+            <input type="text" name="name" required autofocus
+                   value="{{ recipe.name if recipe else '' }}">
+        </div>
+        <div class="field-row">
+            <div class="settings-field">
+                <div class="label">Sale Price (incl. VAT &amp; service)</div>
+                <input type="number" name="sale_price" id="sale-price" step="0.01" min="0"
+                       class="numeric-input"
+                       value="{{ recipe.sale_price if recipe and recipe.sale_price is not none else '' }}"
+                       placeholder="Optional">
+            </div>
+            <div class="settings-field">
+                <div class="label">Sold From (stock location)</div>
+                <select name="location_id">
+                    <option value="">— not set —</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}" {% if recipe and recipe.location_id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="settings-field">
+            <div class="label">Notes</div>
+            <input type="text" name="notes"
+                   value="{{ recipe.notes if recipe and recipe.notes else '' }}"
+                   placeholder="Optional">
+        </div>
+
+        <h2>Ingredients</h2>
+        {% if not items %}
+        <p class="empty-hint">Add cost items first so they appear in the ingredient list.</p>
+        {% endif %}
+        <div class="table-responsive">
+            <table class="sheet-table" id="lines-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th style="width: 12%;">Unit</th>
+                        <th style="width: 16%;">Quantity</th>
+                        <th style="width: 16%;">Line Cost</th>
+                        <th style="width: 8%;"></th>
+                    </tr>
+                </thead>
+                <tbody id="lines-body">
+                    {% if recipe and recipe.lines %}
+                        {% for line in recipe.lines %}
+                        <tr class="line-row">
+                            <td>
+                                <select name="line_item_id" class="line-item" required>
+                                    <option value="">— select —</option>
+                                    {% for item in items %}
+                                    <option value="{{ item.id }}"
+                                            data-unit="{{ item.unit }}"
+                                            data-cost="{{ item.cost_per_unit() }}"
+                                            {% if item.id == line.item_id %}selected{% endif %}>
+                                        {{ item.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="col-center line-unit">{{ line.item.unit if line.item else '' }}</td>
+                            <td>
+                                <input type="number" name="line_quantity" class="line-qty numeric-input"
+                                       step="0.0001" min="0" required value="{{ line.quantity }}">
+                            </td>
+                            <td class="col-right line-cost">{{ line.line_cost()|money }}</td>
+                            <td class="col-center">
+                                <button type="button" class="btn btn-sm btn-outline-danger remove-line" title="Remove">&times;</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        <button type="button" class="btn btn-outline-dark btn-sm btn-add-line" id="add-line" {% if not items %}disabled{% endif %}>
+            + Add Ingredient
+        </button>
+
+        <h2>Costing</h2>
+        <div class="totals-box">
+            <div>
+                <div class="t-label">Recipe Cost</div>
+                <div class="t-value" id="total-cost">{{ currency_symbol }}0.00</div>
+            </div>
+            <div>
+                <div class="t-label">Net Sale</div>
+                <div class="t-value" id="net-sale">—</div>
+            </div>
+            <div>
+                <div class="t-label">Gross Profit</div>
+                <div class="t-value" id="gross-profit">—</div>
+            </div>
+            <div>
+                <div class="t-label">Gross Margin</div>
+                <div class="t-value" id="gross-margin">—</div>
+            </div>
+        </div>
+
+        <div class="sheet-actions">
+            <button type="submit" class="btn btn-dark" {% if not items and not recipe %}disabled{% endif %}>
+                {{ 'Save Recipe' if recipe else 'Create Recipe' }}
+            </button>
+            <a href="{{ url_for('recipes.list_recipes') }}" class="btn btn-outline-dark">Cancel</a>
+            {% if recipe %}
+            <button type="submit" formaction="{{ url_for('recipes.delete_recipe', recipe_id=recipe.id) }}"
+                    formnovalidate
+                    class="btn btn-outline-danger ms-auto"
+                    onclick="return confirm('Delete this recipe?');">
+                Delete
+            </button>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<template id="line-template">
+    <tr class="line-row">
+        <td>
+            <select name="line_item_id" class="line-item" required>
+                <option value="">— select —</option>
+                {% for item in items %}
+                <option value="{{ item.id }}"
+                        data-unit="{{ item.unit }}"
+                        data-cost="{{ item.cost_per_unit() }}">
+                    {{ item.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </td>
+        <td class="col-center line-unit"></td>
+        <td>
+            <input type="number" name="line_quantity" class="line-qty numeric-input"
+                   step="0.0001" min="0" required value="">
+        </td>
+        <td class="col-right line-cost">{{ currency_symbol }}0.00</td>
+        <td class="col-center">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-line" title="Remove">&times;</button>
+        </td>
+    </tr>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const currencySymbol = {{ currency_symbol|tojson }};
+    const body = document.getElementById('lines-body');
+    const template = document.getElementById('line-template');
+    const addBtn = document.getElementById('add-line');
+    const saleInput = document.getElementById('sale-price');
+
+    const VAT_RATE = 0.15;
+    const SERVICE_RATE = 0.10;
+    const TAX_DIVISOR = (1 + VAT_RATE) * (1 + SERVICE_RATE);
+
+    function money(n) {
+        const v = Number(n) || 0;
+        const abs = Math.abs(v).toFixed(2);
+        return (v < 0 ? '-' : '') + currencySymbol + abs;
+    }
+
+    function selectedOption(select) {
+        return select.options[select.selectedIndex];
+    }
+
+    function updateRow(row) {
+        const select = row.querySelector('.line-item');
+        const unitCell = row.querySelector('.line-unit');
+        const qtyInput = row.querySelector('.line-qty');
+        const costCell = row.querySelector('.line-cost');
+        const opt = selectedOption(select);
+        const unit = opt && opt.value ? (opt.dataset.unit || '') : '';
+        const unitCost = opt && opt.value ? parseFloat(opt.dataset.cost || '0') : 0;
+        const qty = parseFloat(qtyInput.value || '0') || 0;
+        unitCell.textContent = unit;
+        costCell.textContent = money(qty * unitCost);
+        costCell.dataset.amount = String(qty * unitCost);
+    }
+
+    function recalc() {
+        let total = 0;
+        body.querySelectorAll('.line-row').forEach(function (row) {
+            updateRow(row);
+            total += parseFloat(row.querySelector('.line-cost').dataset.amount || '0') || 0;
+        });
+        document.getElementById('total-cost').textContent = money(total);
+
+        const sale = parseFloat(saleInput.value || '');
+        const netEl = document.getElementById('net-sale');
+        const profitEl = document.getElementById('gross-profit');
+        const marginEl = document.getElementById('gross-margin');
+        if (!saleInput.value || isNaN(sale) || sale <= 0) {
+            netEl.textContent = '—';
+            profitEl.textContent = '—';
+            marginEl.textContent = '—';
+            marginEl.classList.remove('margin-neg');
+            return;
+        }
+        const net = sale / TAX_DIVISOR;
+        const profit = net - total;
+        const margin = (profit / net) * 100;
+        netEl.textContent = money(net);
+        profitEl.textContent = money(profit);
+        marginEl.textContent = margin.toFixed(1) + '%';
+        marginEl.classList.toggle('margin-neg', margin < 0);
+    }
+
+    function bindRow(row) {
+        row.querySelector('.line-item').addEventListener('change', recalc);
+        row.querySelector('.line-qty').addEventListener('input', recalc);
+        row.querySelector('.remove-line').addEventListener('click', function () {
+            row.remove();
+            recalc();
+        });
+    }
+
+    addBtn.addEventListener('click', function () {
+        const node = template.content.cloneNode(true);
+        const row = node.querySelector('.line-row');
+        body.appendChild(node);
+        bindRow(body.lastElementChild);
+        recalc();
+    });
+
+    saleInput.addEventListener('input', recalc);
+    body.querySelectorAll('.line-row').forEach(bindRow);
+
+    if (!body.querySelector('.line-row') && {{ 'true' if items else 'false' }}) {
+        addBtn.click();
+    } else {
+        recalc();
+    }
+})();
+</script>
+{% endblock %}

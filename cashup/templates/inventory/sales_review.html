@@ -1,0 +1,149 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Sales Mix Review - CashUp{% endblock %}
+
+{% block inv_css %}
+<style>
+    .sales-lines tr.unmapped td { background: #fff4d6; }
+    .sales-lines tr.ignored td { color: #888; }
+    .sales-lines select { min-width: 16rem; }
+    .filter-bar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; }
+    .filter-bar input { border: 1px solid #333; border-radius: 0; padding: 0.25rem 0.5rem; }
+</style>
+{% endblock %}
+
+{% block inv_content %}
+{% set locked = sales_import.status == 'confirmed' %}
+<div class="work-sheet">
+    <h1>Sales Mix {{ sales_import.start_date.strftime('%d/%m/%Y') }} – {{ sales_import.end_date.strftime('%d/%m/%Y') }}</h1>
+    <div class="sheet-meta">
+        <small>
+            {% if locked %}Confirmed — ingredient usage posted on {{ sales_import.end_date.strftime('%d/%m/%Y') }}.
+            {% else %}Map each POS item to a recipe, pick "Sold as-is" to create a one-item recipe, or Ignore non-stock lines (beach beds, fees). Mappings are remembered.{% endif %}
+        </small>
+        <a href="{{ url_for('inventory.sales') }}" class="btn btn-outline-dark btn-sm">All Sales Imports</a>
+    </div>
+
+    <form method="POST">
+        <fieldset {% if locked %}disabled{% endif %}>
+        <div class="field-grid">
+            <div class="settings-field">
+                <div class="label">Period Start</div>
+                <input type="date" name="start_date" value="{{ sales_import.start_date.isoformat() }}">
+            </div>
+            <div class="settings-field">
+                <div class="label">Period End (usage date)</div>
+                <input type="date" name="end_date" value="{{ sales_import.end_date.isoformat() }}">
+            </div>
+            <div class="settings-field">
+                <div class="label">Default Location (recipes without one)</div>
+                <select name="default_location_id">
+                    <option value="">— none —</option>
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}" {% if loc.id == sales_import.default_location_id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="settings-field">
+                <div class="label">Status</div>
+                <div class="fw-bold {{ 'txt-under' if unmapped else 'txt-over' }}">
+                    {{ unmapped }} unmapped of {{ lines|length }}
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <input type="search" id="filter" placeholder="Filter POS items…">
+            <label class="small fw-bold d-flex align-items-center gap-1"><input type="checkbox" id="only-unmapped"> Only unmapped</label>
+        </div>
+
+        <div class="table-responsive scroll-table">
+            <table class="sheet-table sales-lines">
+                <thead>
+                    <tr><th>POS Item</th><th style="width:7%">Qty</th><th style="width:9%">Net</th><th>Recipe</th><th style="width:12%">Location</th></tr>
+                </thead>
+                <tbody id="sales-body">
+                    {% for line in lines %}
+                    {% set current = 'ignore' if line.ignore else ('recipe:' ~ line.recipe_id if line.recipe_id else '') %}
+                    <tr class="sale-row {{ 'unmapped' if not current }} {{ 'ignored' if line.ignore }}" data-name="{{ line.pos_name|lower }}">
+                        <td>{{ line.pos_name }}</td>
+                        <td class="col-right">{{ line.quantity|qty }}</td>
+                        <td class="col-right">{{ line.net|money if line.net is not none else '' }}</td>
+                        <td>
+                            <select name="map_{{ line.id }}" class="map-select" data-current="{{ current }}">
+                                {% if line.recipe %}<option value="recipe:{{ line.recipe_id }}" selected>{{ line.recipe.name }}</option>
+                                {% elif line.ignore %}<option value="ignore" selected>Ignore (not stock)</option>
+                                {% else %}<option value="">— unmapped —</option>{% endif %}
+                            </select>
+                        </td>
+                        <td class="col-center small">
+                            {% if line.recipe %}{{ line.recipe.location.name if line.recipe.location else (sales_import.default_location.name ~ ' (default)' if sales_import.default_location else '—') }}{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </fieldset>
+
+        <div class="sheet-actions">
+            {% if not locked %}
+            <button type="submit" name="action" value="save" class="btn btn-outline-dark">Save Mappings</button>
+            <button type="submit" name="action" value="confirm" class="btn btn-dark" onclick="return confirm('Post ingredient usage for these sales?');">Confirm &amp; Deduct Stock</button>
+            {% endif %}
+        </div>
+    </form>
+    {% if locked %}
+    <form method="POST" action="{{ url_for('inventory.reverse_sales', import_id=sales_import.id) }}" onsubmit="return confirm('Remove the stock usage and make this editable again?');" class="mt-2">
+        <button class="btn btn-outline-danger btn-sm" style="border-radius:0;">Reverse (remove usage)</button>
+    </form>
+    {% endif %}
+</div>
+
+<select id="master-options" hidden>
+    <option value="">— unmapped —</option>
+    <option value="ignore">Ignore (not stock)</option>
+    <optgroup label="Recipes">
+        {% for r in recipes %}<option value="recipe:{{ r.id }}">{{ r.name }}</option>{% endfor %}
+    </optgroup>
+    <optgroup label="Sold as-is (creates 1-item recipe)">
+        {% for item in items %}<option value="item:{{ item.id }}">{{ item.name }}</option>{% endfor %}
+    </optgroup>
+</select>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const master = document.getElementById('master-options');
+    const locked = {{ 'true' if locked else 'false' }};
+    const rows = Array.from(document.querySelectorAll('.sale-row'));
+
+    if (!locked) {
+        rows.forEach(function (row) {
+            const select = row.querySelector('.map-select');
+            const current = select.dataset.current;
+            select.innerHTML = master.innerHTML;
+            select.value = current;
+            select.addEventListener('change', function () {
+                row.classList.toggle('unmapped', !select.value);
+                row.classList.toggle('ignored', select.value === 'ignore');
+            });
+        });
+    }
+
+    const filter = document.getElementById('filter');
+    const onlyUnmapped = document.getElementById('only-unmapped');
+    function applyFilter() {
+        const term = filter.value.trim().toLowerCase();
+        rows.forEach(function (row) {
+            const matches = !term || row.dataset.name.indexOf(term) !== -1;
+            const show = matches && (!onlyUnmapped.checked || row.classList.contains('unmapped'));
+            row.style.display = show ? '' : 'none';
+        });
+    }
+    filter.addEventListener('input', applyFilter);
+    onlyUnmapped.addEventListener('change', applyFilter);
+})();
+</script>
+{% endblock %}

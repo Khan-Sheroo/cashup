@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if item else 'Add' }} Item - CashUp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .work-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #333;
+        max-width: 36rem;
+    }
+    .work-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .work-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1rem;
+    }
+    .work-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .settings-field {
+        border: 1px solid #333;
+        padding: 0.75rem 0.85rem;
+        margin-bottom: 0.75rem;
+        background: #fff;
+    }
+    .settings-field .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #555;
+        margin-bottom: 0.35rem;
+        font-weight: 700;
+    }
+    .settings-field .hint {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 0.35rem;
+    }
+    .settings-field input[type="text"],
+    .settings-field input[type="number"],
+    .settings-field select {
+        border: 1px solid #333;
+        border-radius: 0;
+        padding: 0.35rem 0.5rem;
+        background: #fff;
+        width: 100%;
+    }
+    .settings-field input:focus,
+    .settings-field select:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 1px #111;
+        background: #fffef5;
+    }
+    .settings-field .check-row {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .pack-row {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 0.75rem;
+    }
+    @media (max-width: 480px) {
+        .pack-row { grid-template-columns: 1fr; }
+    }
+    .derived-cost {
+        border: 2px solid #111;
+        padding: 0.75rem 0.85rem;
+        margin-bottom: 0.75rem;
+        background: #f8f8f8;
+    }
+    .derived-cost .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #555;
+        margin-bottom: 0.25rem;
+        font-weight: 700;
+    }
+    .derived-cost .value {
+        font-size: 1.15rem;
+        font-weight: 700;
+    }
+    .sheet-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 2px solid #111;
+    }
+    .sheet-actions .btn {
+        border-radius: 0;
+        border-width: 1px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="work-sheet">
+    <h1>{{ 'Edit Item' if item else 'Add Item' }}</h1>
+    <div class="sheet-meta">
+        <small>Enter what you buy (e.g. 750 ml bottle @ {{ currency_symbol }}300) — recipes use the unit cost.</small>
+    </div>
+
+    <h2>Details</h2>
+    <form method="POST" id="item-form">
+        <div class="settings-field">
+            <div class="label">Item Name *</div>
+            <input type="text" name="name" required autofocus
+                   value="{{ item.name if item else '' }}"
+                   placeholder="e.g. Vodka">
+        </div>
+        <div class="pack-row">
+            <div class="settings-field">
+                <div class="label">Pack Size *</div>
+                <input type="number" name="pack_size" id="pack-size" step="0.0001" min="0.0001" required
+                       class="numeric-input"
+                       value="{{ item.pack_size if item else '1' }}"
+                       placeholder="750">
+                <div class="hint">How much is in one purchase</div>
+            </div>
+            <div class="settings-field">
+                <div class="label">Unit of Measure *</div>
+                <select name="unit" id="unit" required>
+                    {% for value, label in common_units %}
+                    <option value="{{ value }}"
+                        {% if (item and item.unit == value) or (not item and value == 'each') %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="hint">Unit used in recipes</div>
+            </div>
+        </div>
+        <div class="settings-field">
+            <div class="label">Cost of Pack *</div>
+            <input type="number" name="cost_price" id="cost-price" step="0.01" min="0" required
+                   class="numeric-input"
+                   value="{{ item.cost_price if item else '' }}"
+                   placeholder="300">
+            <div class="hint">What you pay for the full pack size above</div>
+        </div>
+
+        <div class="derived-cost">
+            <div class="label">Cost per <span id="unit-label">unit</span></div>
+            <div class="value" id="unit-cost-display">{{ currency_symbol }}0.0000</div>
+        </div>
+
+        <h2>Stock Control</h2>
+        <div class="settings-field">
+            <div class="label">Category</div>
+            <input type="text" name="category" list="category-list"
+                   value="{{ item.category if item and item.category else '' }}"
+                   placeholder="e.g. Rum, Beer, Veg">
+            <datalist id="category-list">
+                {% for cat in categories %}<option value="{{ cat }}">{% endfor %}
+            </datalist>
+        </div>
+        <div class="pack-row">
+            <div class="settings-field">
+                <div class="label">Count Unit</div>
+                <input type="text" name="count_unit" list="count-unit-list" id="count-unit"
+                       value="{{ item.count_unit if item and item.count_unit else '' }}"
+                       placeholder="e.g. Bot, Glass, ml">
+                <datalist id="count-unit-list">
+                    <option value="Bot"><option value="Glass"><option value="Can"><option value="Case">
+                    <option value="ml"><option value="g"><option value="kg"><option value="each">
+                </datalist>
+                <div class="hint">How you count it on stock take. Blank = one pack.</div>
+            </div>
+            <div class="settings-field">
+                <div class="label"><span id="factor-unit">Recipe units</span> per count unit</div>
+                <input type="number" name="count_factor" id="count-factor" step="0.0001" min="0.0001"
+                       class="numeric-input"
+                       value="{{ item.count_factor if item and item.count_factor is not none else '' }}"
+                       placeholder="Defaults to pack size">
+                <div class="hint">e.g. Bot = 750, Glass = 150, ml = 1</div>
+            </div>
+        </div>
+        <div class="settings-field">
+            <div class="label">Par Level (in count units)</div>
+            <input type="number" name="par_level" step="0.01" min="0" class="numeric-input"
+                   value="{{ item.par_level if item and item.par_level is not none else '' }}"
+                   placeholder="Optional — flags low stock">
+        </div>
+
+        <div class="settings-field">
+            <label class="check-row" for="active">
+                <input type="checkbox" id="active" name="active"
+                       {% if not item or item.active %}checked{% endif %}>
+                Active (available for new recipes)
+            </label>
+        </div>
+
+        <div class="sheet-actions">
+            <button type="submit" class="btn btn-dark">{{ 'Save Item' if item else 'Add Item' }}</button>
+            <a href="{{ url_for('recipes.list_items') }}" class="btn btn-outline-dark">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const currencySymbol = {{ currency_symbol|tojson }};
+    const packSize = document.getElementById('pack-size');
+    const costPrice = document.getElementById('cost-price');
+    const unitSelect = document.getElementById('unit');
+    const unitLabel = document.getElementById('unit-label');
+    const display = document.getElementById('unit-cost-display');
+
+    function recalc() {
+        const size = parseFloat(packSize.value);
+        const cost = parseFloat(costPrice.value);
+        const unit = unitSelect.value || 'unit';
+        unitLabel.textContent = unit;
+        document.getElementById('factor-unit').textContent = unit;
+        if (!size || size <= 0 || isNaN(cost) || cost < 0) {
+            display.textContent = currencySymbol + '0.0000';
+            return;
+        }
+        display.textContent = currencySymbol + (cost / size).toFixed(4);
+    }
+
+    packSize.addEventListener('input', recalc);
+    costPrice.addEventListener('input', recalc);
+    unitSelect.addEventListener('change', recalc);
+    recalc();
+})();
+</script>
+{% endblock %}

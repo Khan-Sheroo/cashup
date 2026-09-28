@@ -1,0 +1,66 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Stock Takes - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>Stock Takes</h1>
+    <div class="sheet-meta">
+        <small>Count a location, upload the sheet (or type counts in), then compare against expected stock from purchases, requisitions and sales.</small>
+    </div>
+
+    <h2>Start a Count</h2>
+    <form method="POST" action="{{ url_for('inventory.new_stocktake') }}" class="field-grid" style="align-items:end;">
+        <div class="settings-field">
+            <div class="label">Location</div>
+            <select name="location_id">
+                {% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="settings-field">
+            <div class="label">Count Date</div>
+            <input type="date" name="count_date" value="{{ today.isoformat() }}">
+        </div>
+        <div class="settings-field">
+            <div class="label">Note</div>
+            <input type="text" name="note" placeholder="e.g. Week 39 close">
+        </div>
+        <div><button type="submit" class="btn btn-dark w-100">Start Stock Take</button></div>
+    </form>
+
+    <h2>History</h2>
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr><th>Date</th><th>Location</th><th>Items Counted</th><th>Note</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for take in stocktakes %}
+                <tr>
+                    <td class="col-center">{{ take.count_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ take.location.name }}</td>
+                    <td class="col-center">{{ take.lines|length }}</td>
+                    <td>{{ take.note or '' }}</td>
+                    <td class="col-center"><span class="status-pill status-{{ take.status }}">{{ take.status }}</span></td>
+                    <td class="col-center">
+                        <div class="btn-row justify-content-center">
+                            {% if take.status == 'draft' %}
+                            <a href="{{ url_for('inventory.count_stocktake', take_id=take.id) }}" class="btn btn-sm btn-dark">Count</a>
+                            {% endif %}
+                            <a href="{{ url_for('inventory.variance', take_id=take.id) }}" class="btn btn-sm btn-outline-dark">Variance</a>
+                            {% if take.status == 'draft' %}
+                            <form method="POST" action="{{ url_for('inventory.delete_stocktake', take_id=take.id) }}" onsubmit="return confirm('Delete this stock take?');">
+                                <button class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center muted">No stock takes yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

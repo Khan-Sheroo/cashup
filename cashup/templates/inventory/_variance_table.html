@@ -1,0 +1,62 @@
+{% set t = summary.totals %}
+<div class="totals-box">
+    <div><div class="t-label">Expected Value</div><div class="t-value">{{ t.expected_value|money }}</div></div>
+    <div><div class="t-label">Counted Value</div><div class="t-value">{{ t.counted_value|money }}</div></div>
+    <div><div class="t-label">Sales Usage Value</div><div class="t-value">{{ t.usage_value|money }}</div></div>
+    <div><div class="t-label">Over</div><div class="t-value txt-over">{{ t.over_value|money }}</div></div>
+    <div><div class="t-label">Under</div><div class="t-value txt-under">{{ t.under_value|money }}</div></div>
+    <div><div class="t-label">Net Variance</div><div class="t-value {{ 'txt-under' if t.net_value < 0 else 'txt-over' }}">{{ t.net_value|money }}</div></div>
+</div>
+
+<div class="table-responsive {{ 'scroll-table' if not print_mode }}">
+    <table class="sheet-table variance-table">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th>Unit</th>
+                <th>Opening</th>
+                <th>Purchases</th>
+                <th>Req In</th>
+                <th>Req Out</th>
+                <th>Adjust / Waste</th>
+                <th>Sales Usage</th>
+                <th>Expected</th>
+                <th>Counted</th>
+                <th>Variance</th>
+                <th>Var %</th>
+                <th>Var Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% set ns = namespace(cat=None) %}
+            {% for r in summary.rows %}
+                {% if loop.first or r.item.category != ns.cat %}
+                    {% set ns.cat = r.item.category %}
+                    <tr class="cat-row"><td colspan="13">{{ r.item.category or 'Uncategorised' }}</td></tr>
+                {% endif %}
+                {% set f = r.factor %}
+                <tr class="{{ 'over' if r.variance is not none and r.variance > 0 }} {{ 'under' if r.variance is not none and r.variance < 0 }}">
+                    <td>{{ r.item.name }}</td>
+                    <td class="col-center">{{ r.item.count_unit_label() }}</td>
+                    <td class="col-right">{{ (r.opening / f)|qty }}</td>
+                    <td class="col-right">{{ (r.purchases / f)|qty if r.purchases else '' }}</td>
+                    <td class="col-right">{{ (r.transfers_in / f)|qty if r.transfers_in else '' }}</td>
+                    <td class="col-right">{{ (r.transfers_out / f)|qty if r.transfers_out else '' }}</td>
+                    <td class="col-right">{{ (r.adjustments / f)|qty if r.adjustments else '' }}</td>
+                    <td class="col-right">{{ (r.sales / f)|qty if r.sales else '' }}</td>
+                    <td class="col-right fw-bold">{{ (r.expected / f)|qty }}</td>
+                    <td class="col-right fw-bold">{{ (r.counted / f)|qty if r.counted is not none else '—' }}</td>
+                    <td class="col-right {{ 'txt-over' if r.variance and r.variance > 0 }} {{ 'txt-under' if r.variance and r.variance < 0 }}">
+                        {% if r.variance is not none %}{{ '+' if r.variance > 0 }}{{ (r.variance / f)|qty }}{% endif %}
+                    </td>
+                    <td class="col-right">{% if r.variance_pct is not none %}{{ '%.1f'|format(r.variance_pct) }}%{% endif %}</td>
+                    <td class="col-right {{ 'txt-over' if r.variance_value and r.variance_value > 0 }} {{ 'txt-under' if r.variance_value and r.variance_value < 0 }}">
+                        {{ r.variance_value|money if r.variance_value is not none else '' }}
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="13" class="text-center muted">Nothing to compare yet — enter counts or post stock movements for this location.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

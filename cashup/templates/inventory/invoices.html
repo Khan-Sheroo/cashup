@@ -1,0 +1,49 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Invoices - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>Supplier Invoices &amp; Purchase Orders</h1>
+    <div class="sheet-meta">
+        <small>Upload a PDF purchase order / invoice (or CSV). Lines are read automatically, matched to items, then received into the Store Room on confirm.</small>
+    </div>
+
+    <form method="POST" action="{{ url_for('inventory.upload_invoice') }}" enctype="multipart/form-data" class="upload-box">
+        <input type="file" name="file" accept=".pdf,.csv,.txt" class="form-control form-control-sm" style="border-radius:0;">
+        <button type="submit" class="btn btn-dark btn-sm">Upload &amp; Read</button>
+        <span class="muted small">or leave empty and click to enter an invoice manually</span>
+    </form>
+
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr><th>Date</th><th>Supplier</th><th>Reference</th><th>Location</th><th>Lines</th><th>Total</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for inv in invoices %}
+                <tr>
+                    <td class="col-center">{{ inv.invoice_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ inv.supplier.name if inv.supplier else '—' }}</td>
+                    <td>{{ inv.reference or '' }}</td>
+                    <td>{{ inv.location.name if inv.location else '' }}</td>
+                    <td class="col-center">{{ inv.lines|length }}</td>
+                    <td class="col-right">{{ inv.lines_total()|money }}</td>
+                    <td class="col-center"><span class="status-pill status-{{ inv.status }}">{{ inv.status }}</span></td>
+                    <td class="col-center">
+                        <div class="btn-row justify-content-center">
+                            <a href="{{ url_for('inventory.review_invoice', invoice_id=inv.id) }}" class="btn btn-sm btn-outline-dark">{{ 'View' if inv.status == 'confirmed' else 'Review' }}</a>
+                            <form method="POST" action="{{ url_for('inventory.delete_invoice', invoice_id=inv.id) }}" onsubmit="return confirm('Delete this invoice{{ ' and remove its stock' if inv.status == 'confirmed' }}?');">
+                                <button class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center muted">No invoices yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

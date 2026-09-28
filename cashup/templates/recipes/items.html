@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Items - CashUp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .work-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #333;
+    }
+    .work-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .work-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem 1.25rem;
+    }
+    .work-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .sheet-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        background: #fff;
+    }
+    .sheet-table th,
+    .sheet-table td {
+        border: 1px solid #333;
+        padding: 0.35rem 0.5rem;
+        vertical-align: middle;
+    }
+    .sheet-table thead th {
+        background: #f1f1f1;
+        font-weight: 700;
+        text-align: center;
+    }
+    .sheet-table .col-center { text-align: center; }
+    .sheet-table .col-right { text-align: right; }
+    .sheet-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 2px solid #111;
+    }
+    .sheet-actions .btn,
+    .work-sheet .btn {
+        border-radius: 0;
+        border-width: 1px;
+    }
+    .btn-row {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.35rem;
+        white-space: nowrap;
+    }
+    .btn-row form { display: inline; margin: 0; }
+    .btn-row .btn {
+        padding: 0.2rem 0.45rem;
+        font-size: 0.8rem;
+        line-height: 1.25;
+    }
+    .status-active { font-weight: 600; }
+    .status-inactive { color: #666; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="work-sheet">
+    <h1>Cost Items</h1>
+    <div class="sheet-meta">
+        <small>{{ items|length }} item{{ '' if items|length == 1 else 's' }} — used as ingredients in recipes</small>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('recipes.list_recipes') }}" class="btn btn-outline-dark btn-sm">Recipes</a>
+            <a href="{{ url_for('recipes.add_item') }}" class="btn btn-dark btn-sm">Add Item</a>
+        </div>
+    </div>
+
+    <h2>Item Master</h2>
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th style="width: 12%;">Category</th>
+                    <th style="width: 10%;">Count Unit</th>
+                    <th style="width: 14%;">Pack</th>
+                    <th style="width: 14%;">Pack Cost</th>
+                    <th style="width: 14%;">Cost / Unit</th>
+                    <th style="width: 10%;">Status</th>
+                    <th style="width: 22%;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if items %}
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.category or '' }}</td>
+                        <td class="col-center">{{ item.count_unit_label() }}</td>
+                        <td class="col-center">{{ item.pack_size|float }} {{ item.unit }}</td>
+                        <td class="col-right">{{ item.cost_price|money }}</td>
+                        <td class="col-right">{{ currency_symbol }}{{ '%.4f'|format(item.cost_per_unit()) }}</td>
+                        <td class="col-center">
+                            {% if item.active %}
+                                <span class="status-active">Active</span>
+                            {% else %}
+                                <span class="status-inactive">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="col-center">
+                            <div class="btn-row justify-content-center">
+                                <a href="{{ url_for('recipes.edit_item', item_id=item.id) }}" class="btn btn-sm btn-outline-dark">Edit</a>
+                                <form method="POST" action="{{ url_for('recipes.toggle_item', item_id=item.id) }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-dark">
+                                        {{ 'Deactivate' if item.active else 'Activate' }}
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('recipes.delete_item', item_id=item.id) }}" onsubmit="return confirm('Delete {{ item.name }}?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">
+                            No items yet. <a href="{{ url_for('recipes.add_item') }}">Add one now</a>.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="sheet-actions">
+        <a href="{{ url_for('recipes.add_item') }}" class="btn btn-dark">Add Item</a>
+        <a href="{{ url_for('recipes.list_recipes') }}" class="btn btn-outline-dark">Back to Recipes</a>
+    </div>
+</div>
+{% endblock %}

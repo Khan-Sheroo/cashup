@@ -34,6 +34,50 @@ def _ensure_schema(app):
                         'REFERENCES staff_folder(id)'
                     ))
 
+        if 'cost_item' in tables:
+            columns = {c['name'] for c in inspector.get_columns('cost_item')}
+            if 'pack_size' not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text(
+                        'ALTER TABLE cost_item ADD COLUMN pack_size NUMERIC(12, 4) '
+                        'DEFAULT 1 NOT NULL'
+                    ))
+            new_item_columns = {
+                'category': 'VARCHAR(80)',
+                'count_unit': 'VARCHAR(20)',
+                'count_factor': 'NUMERIC(12, 4)',
+                'par_level': 'NUMERIC(12, 4)',
+            }
+            for name, col_type in new_item_columns.items():
+                if name not in columns:
+                    with db.engine.begin() as conn:
+                        conn.execute(text(f'ALTER TABLE cost_item ADD COLUMN {name} {col_type}'))
+
+        if 'recipe' in tables:
+            columns = {c['name'] for c in inspector.get_columns('recipe')}
+            if 'location_id' not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text(
+                        'ALTER TABLE recipe ADD COLUMN location_id INTEGER '
+                        'REFERENCES location(id)'
+                    ))
+
+        for table in ('invoice_line', 'supplier_item_alias'):
+            if table in tables:
+                columns = {c['name'] for c in inspector.get_columns(table)}
+                if 'qty_unit' not in columns:
+                    with db.engine.begin() as conn:
+                        conn.execute(text(
+                            f"ALTER TABLE {table} ADD COLUMN qty_unit VARCHAR(10) "
+                            f"DEFAULT 'unit' NOT NULL"
+                        ))
+
+        from cashup.models import DEFAULT_LOCATIONS, Location
+        if Location.query.count() == 0:
+            for order, (name, kind) in enumerate(DEFAULT_LOCATIONS):
+                db.session.add(Location(name=name, kind=kind, sort_order=order))
+            db.session.commit()
+
 
 def create_app(config_name='development'):
     """Application factory pattern"""
@@ -53,10 +97,25 @@ def create_app(config_name='development'):
     
     # Register blueprints
     from cashup.routes import main_bp, staff_bp, cashup_bp, settings_bp
+    from cashup.recipe_routes import recipes_bp
+    from cashup.inventory_routes import inventory_bp
     app.register_blueprint(main_bp)
     app.register_blueprint(staff_bp)
     app.register_blueprint(cashup_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(recipes_bp)
+    app.register_blueprint(inventory_bp)
+
+    @app.template_filter('qty')
+    def qty_filter(value, places=2):
+        try:
+            amount = float(value)
+        except (TypeError, ValueError):
+            return ''
+        text_value = f'{amount:,.{places}f}'
+        if '.' in text_value:
+            text_value = text_value.rstrip('0').rstrip('.')
+        return '0' if text_value in ('-0', '') else text_value
 
     @app.context_processor
     def inject_app_settings():

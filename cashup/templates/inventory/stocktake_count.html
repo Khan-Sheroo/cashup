@@ -1,0 +1,92 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Stock Take {{ take.location.name }} - CashUp{% endblock %}
+
+{% block inv_content %}
+{% set locked = take.status == 'confirmed' %}
+<div class="work-sheet" style="max-width: 60rem;">
+    <h1>Stock Take — {{ take.location.name }}</h1>
+    <div class="sheet-meta">
+        <small>Enter the physical count in each item's count unit. Leave blank if not counted (blank items are not adjusted).</small>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('inventory.stocktake_template', take_id=take.id, all=('1' if show_all else None)) }}" class="btn btn-outline-dark btn-sm">Download Count Sheet (.xlsx)</a>
+            <a href="{{ url_for('inventory.variance', take_id=take.id) }}" class="btn btn-outline-dark btn-sm">Preview Variance</a>
+        </div>
+    </div>
+
+    {% if not locked %}
+    <form method="POST" action="{{ url_for('inventory.upload_stocktake', take_id=take.id) }}" enctype="multipart/form-data" class="upload-box">
+        <input type="file" name="file" accept=".xlsx,.xlsm,.csv" required class="form-control form-control-sm" style="border-radius:0;">
+        <button type="submit" class="btn btn-dark btn-sm">Upload Counts</button>
+        <span class="small muted">Excel/CSV with "Description" and "Physical Count" columns (your existing sheet works).</span>
+    </form>
+    {% endif %}
+
+    {% set unmatched = take.unmatched_rows() %}
+    {% if unmatched %}
+    <div class="alert alert-warning" style="border-radius:0;">
+        <strong>{{ unmatched|length }} uploaded rows didn't match an item.</strong>
+        Add the missing items (or rename them to match), then re-upload — or type these counts in below.
+        <div class="mt-1 small">
+            {% for row in unmatched %}<span class="me-3">{{ row.description }}: <strong>{{ row.count }}</strong></span>{% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="POST">
+        <input type="hidden" name="show_all" value="{{ '1' if show_all else '0' }}">
+        <fieldset {% if locked %}disabled{% endif %}>
+        <div class="field-grid">
+            <div class="settings-field">
+                <div class="label">Count Date</div>
+                <input type="date" name="count_date" value="{{ take.count_date.isoformat() }}">
+            </div>
+            <div class="settings-field">
+                <div class="label">Note</div>
+                <input type="text" name="note" value="{{ take.note or '' }}">
+            </div>
+            <div class="settings-field">
+                <div class="label">Items Shown</div>
+                <div>
+                    {% if show_all %}All active items — <a href="{{ url_for('inventory.count_stocktake', take_id=take.id) }}">only items at {{ take.location.name }}</a>
+                    {% else %}Items stocked at {{ take.location.name }} — <a href="{{ url_for('inventory.count_stocktake', take_id=take.id, all='1') }}">show all items</a>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive scroll-table">
+            <table class="sheet-table">
+                <thead><tr><th>Item</th><th style="width:16%">Count Unit</th><th style="width:20%">Physical Count</th></tr></thead>
+                <tbody>
+                    {% set ns = namespace(cat=None) %}
+                    {% for item in items %}
+                        {% if loop.first or item.category != ns.cat %}
+                            {% set ns.cat = item.category %}
+                            <tr class="cat-row"><td colspan="3">{{ item.category or 'Uncategorised' }}</td></tr>
+                        {% endif %}
+                        <tr>
+                            <td>{{ item.name }}</td>
+                            <td class="col-center">{{ item.count_unit_label() }}</td>
+                            <td><input type="number" step="any" name="count_{{ item.id }}" class="numeric-input"
+                                       value="{{ counts[item.id]|float if item.id in counts else '' }}"></td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="3" class="text-center muted">
+                            No stock history at this location yet — <a href="{{ url_for('inventory.count_stocktake', take_id=take.id, all='1') }}">show all items</a> to count.
+                        </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </fieldset>
+
+        <div class="sheet-actions">
+            {% if not locked %}
+            <button type="submit" name="action" value="save" class="btn btn-outline-dark">Save Counts</button>
+            <button type="submit" name="action" value="confirm" class="btn btn-dark" onclick="return confirm('Confirm this count? Stock levels at {{ take.location.name }} will be set to the counted figures.');">Confirm Stock Take</button>
+            {% endif %}
+            <a href="{{ url_for('inventory.stocktakes') }}" class="btn btn-outline-dark">Back</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

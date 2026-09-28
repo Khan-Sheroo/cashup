@@ -1,0 +1,34 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Variance {{ take.location.name }} - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>Stock Variance — {{ take.location.name }}</h1>
+    <div class="sheet-meta">
+        <small>
+            Period: {{ summary.start.strftime('%d/%m/%Y') ~ ' (last count)' if summary.start else 'start of records' }} → {{ summary.end.strftime('%d/%m/%Y') }}.
+            Expected = Opening + Purchases + Requisitions − Sales usage ± Adjustments. Variance = Counted − Expected
+            (<span class="txt-over">over</span> / <span class="txt-under">under</span>).
+            {% if take.status != 'confirmed' %}<strong>Draft preview</strong> — confirm the count to lock it in.{% endif %}
+        </small>
+        <div class="d-flex gap-2 flex-wrap">
+            {% if take.status == 'draft' %}
+            <a href="{{ url_for('inventory.count_stocktake', take_id=take.id) }}" class="btn btn-dark btn-sm">Edit Counts</a>
+            {% endif %}
+            <a href="{{ url_for('inventory.variance_print', take_id=take.id) }}" target="_blank" class="btn btn-outline-dark btn-sm">Print</a>
+            <a href="{{ url_for('inventory.stocktakes') }}" class="btn btn-outline-dark btn-sm">All Stock Takes</a>
+        </div>
+    </div>
+
+    {% include "inventory/_variance_table.html" %}
+
+    {% if take.status == 'confirmed' %}
+    <div class="sheet-actions">
+        <form method="POST" action="{{ url_for('inventory.reverse_stocktake', take_id=take.id) }}" onsubmit="return confirm('Undo the stock adjustments from this count and make it editable?');">
+            <button class="btn btn-outline-danger btn-sm">Reverse Stock Take</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Stock - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>Live Stock</h1>
+    <div class="sheet-meta">
+        <form method="GET" class="d-flex gap-2 align-items-center">
+            <label for="location" class="fw-bold small text-uppercase">Location</label>
+            <select name="location" id="location" class="form-select form-select-sm" style="width:auto;border-radius:0;" onchange="this.form.submit()">
+                <option value="all" {% if selected == 'all' %}selected{% endif %}>All locations</option>
+                {% for loc in locations %}
+                <option value="{{ loc.id }}" {% if location and location.id == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('inventory.adjust') }}" class="btn btn-dark btn-sm">Manual Entry</a>
+            <a href="{{ url_for('inventory.new_requisition') }}" class="btn btn-outline-dark btn-sm">New Requisition</a>
+        </div>
+    </div>
+
+    <div class="totals-box">
+        <div>
+            <div class="t-label">Stock Value ({{ location.name if location else 'All' }})</div>
+            <div class="t-value">{{ grand_value|money }}</div>
+        </div>
+        <div>
+            <div class="t-label">Items</div>
+            <div class="t-value">{{ rows|length }}</div>
+        </div>
+        <div>
+            <div class="t-label">Below Par</div>
+            <div class="t-value {{ 'txt-under' if rows|selectattr('below_par')|list }}">{{ rows|selectattr('below_par')|list|length }}</div>
+        </div>
+    </div>
+
+    <div class="table-responsive scroll-table">
+        <table class="sheet-table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Count Unit</th>
+                    {% if not location %}
+                        {% for loc in locations %}<th>{{ loc.name }}</th>{% endfor %}
+                    {% endif %}
+                    <th>On Hand</th>
+                    <th>In Recipe Units</th>
+                    <th>Par</th>
+                    <th>Value</th>
+                    <th>Last Movement</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(cat=None) %}
+                {% for row in rows %}
+                    {% if loop.first or row.item.category != ns.cat %}
+                        {% set ns.cat = row.item.category %}
+                        <tr class="cat-row"><td colspan="{{ 8 + (0 if location else locations|length) }}">{{ row.item.category or 'Uncategorised' }}</td></tr>
+                    {% endif %}
+                    <tr>
+                        <td>{{ row.item.name }}{% if not row.item.active %} <span class="muted">(inactive)</span>{% endif %}</td>
+                        <td class="col-center">{{ row.item.count_unit_label() }}</td>
+                        {% if not location %}
+                            {% for loc in locations %}
+                            <td class="col-right {{ 'txt-under' if row.by_location[loc.id] < 0 }}">{{ row.by_location[loc.id]|qty }}</td>
+                            {% endfor %}
+                        {% endif %}
+                        <td class="col-right fw-bold {{ 'txt-under' if row.count_qty < 0 }}">{{ row.count_qty|qty }}</td>
+                        <td class="col-right muted">{{ row.qty|qty }} {{ row.item.unit }}</td>
+                        <td class="col-right {{ 'below-par' if row.below_par }}">{{ row.par|qty if row.par is not none else '' }}</td>
+                        <td class="col-right">{{ row.value|money }}</td>
+                        <td class="col-center">{{ row.last.strftime('%d/%m/%Y') if row.last else '' }}</td>
+                        <td class="col-center"><a href="{{ url_for('inventory.item_movements', item_id=row.item.id) }}" class="btn btn-sm btn-outline-dark" style="padding:0.1rem 0.4rem;font-size:0.78rem;">History</a></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="9" class="text-center muted">No items yet. <a href="{{ url_for('recipes.add_item') }}">Add items</a> first.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

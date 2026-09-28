@@ -1,0 +1,25 @@
+<template id="line-template">
+    <tr class="line-row">
+        <td>
+            <select name="line_item_id" class="line-item">
+                <option value="">— select —</option>
+                {% set ns = namespace(cat=None, open=False) %}
+                {% for item in items %}
+                    {% if loop.first or item.category != ns.cat %}
+                        {% if ns.open %}</optgroup>{% endif %}
+                        {% set ns.cat = item.category %}
+                        <optgroup label="{{ item.category or 'Uncategorised' }}">
+                        {% set ns.open = True %}
+                    {% endif %}
+                    <option value="{{ item.id }}" data-unit="{{ item.count_unit_label() }}"
+                            {% if store_stock is defined %}data-stock="{{ item.to_count_units(store_stock.get(item.id, 0))|qty }}"{% endif %}>{{ item.name }}</option>
+                {% endfor %}
+                {% if ns.open %}</optgroup>{% endif %}
+            </select>
+        </td>
+        <td class="col-center line-unit"></td>
+        {% if store_stock is defined %}<td class="col-right line-stock muted"></td>{% endif %}
+        <td><input type="number" name="line_quantity" class="numeric-input" step="any"></td>
+        <td class="col-center"><button type="button" class="btn btn-sm btn-outline-danger remove-line">&times;</button></td>
+    </tr>
+</template>

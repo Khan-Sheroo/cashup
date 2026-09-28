@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Variance {{ take.location.name }} {{ take.count_date.strftime('%d-%m-%Y') }}</title>
+    <style>
+        @page { size: A4 landscape; margin: 10mm; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 11px; margin: 0; padding: 12px; }
+        h1 { font-size: 18px; margin: 0 0 2px; }
+        .meta { color: #444; margin-bottom: 10px; }
+        .totals-box { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; border: 2px solid #111; padding: 8px; margin-bottom: 10px; }
+        .t-label { font-size: 9px; text-transform: uppercase; color: #555; font-weight: 700; }
+        .t-value { font-size: 14px; font-weight: 700; }
+        .sheet-table { width: 100%; border-collapse: collapse; }
+        .sheet-table th, .sheet-table td { border: 1px solid #333; padding: 2px 4px; }
+        .sheet-table thead th { background: #eee; }
+        .col-right { text-align: right; white-space: nowrap; }
+        .col-center { text-align: center; }
+        .cat-row td { background: #e3e3e3; font-weight: 700; text-transform: uppercase; font-size: 9px; }
+        .over { background: #e6f4ea; }
+        .under { background: #fbe9e9; }
+        .txt-over { color: #146c2e; font-weight: 700; }
+        .txt-under { color: #a61b1b; font-weight: 700; }
+        .fw-bold { font-weight: 700; }
+        .muted { color: #777; }
+        .no-print { margin-bottom: 10px; }
+        @media print { .no-print { display: none; } body { padding: 0; } }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    </style>
+</head>
+<body>
+    <div class="no-print"><button onclick="window.print()">Print / Save as PDF</button></div>
+    <h1>Stock Variance — {{ take.location.name }}</h1>
+    <div class="meta">
+        Count date {{ take.count_date.strftime('%d/%m/%Y') }} ·
+        Period from {{ summary.start.strftime('%d/%m/%Y') if summary.start else 'start of records' }} ·
+        {{ 'Confirmed' if take.status == 'confirmed' else 'DRAFT' }}{% if take.note %} · {{ take.note }}{% endif %}
+    </div>
+    {% set print_mode = True %}
+    {% include "inventory/_variance_table.html" %}
+</body>
+</html>
