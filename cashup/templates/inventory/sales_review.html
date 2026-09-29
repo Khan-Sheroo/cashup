@@ -4,11 +4,18 @@
 
 {% block inv_css %}
 <style>
-    .sales-lines tr.unmapped td { background: #fff4d6; }
-    .sales-lines tr.ignored td { color: #888; }
-    .sales-lines select { min-width: 16rem; }
+    .sales-lines tr.mode-newitem td { background: #fff4d6; }
+    .sales-lines tr.mode-newrecipe td { background: #eef3ff; }
+    .sales-lines tr.mode-ignore td { color: #888; }
+    .map-modes { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.75rem; }
+    .map-modes label { display: inline-flex; align-items: center; gap: 0.25rem; margin: 0; white-space: nowrap; cursor: pointer; font-size: 0.85rem; }
+    .map-modes select { min-width: 14rem; max-width: 22rem; width: auto !important; flex: 1 1 14rem; }
+    .map-modes select.dim { opacity: 0.45; }
     .filter-bar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; }
-    .filter-bar input { border: 1px solid #333; border-radius: 0; padding: 0.25rem 0.5rem; }
+    .filter-bar input[type="search"] { border: 1px solid #333; border-radius: 0; padding: 0.25rem 0.5rem; }
+    .bulk-bar { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; margin-left: auto; }
+    .bulk-bar .btn { padding: 0.15rem 0.5rem; font-size: 0.8rem; }
+    .legend span { display: inline-block; padding: 0 0.4rem; border: 1px solid #333; margin-right: 0.3rem; font-size: 0.75rem; }
 </style>
 {% endblock %}
 
@@ -19,7 +26,7 @@
     <div class="sheet-meta">
         <small>
             {% if locked %}Confirmed — ingredient usage posted on {{ sales_import.end_date.strftime('%d/%m/%Y') }}.
-            {% else %}Map each POS item to a recipe, pick "Sold as-is" to create a one-item recipe, or Ignore non-stock lines (beach beds, fees). Mappings are remembered.{% endif %}
+            {% else %}For each POS item choose: <strong>New item</strong> (sold as bought — bottles, cans), <strong>New recipe</strong> (dishes &amp; cocktails — add ingredients later), <strong>Ignore</strong> (not stock — beach beds, fees), or <strong>Existing</strong> to link a recipe/item you already have. Choices are remembered.{% endif %}
         </small>
         <a href="{{ url_for('inventory.sales') }}" class="btn btn-outline-dark btn-sm">All Sales Imports</a>
     </div>
@@ -45,39 +52,58 @@
                 </select>
             </div>
             <div class="settings-field">
-                <div class="label">Status</div>
-                <div class="fw-bold {{ 'txt-under' if unmapped else 'txt-over' }}">
-                    {{ unmapped }} unmapped of {{ lines|length }}
-                </div>
+                <div class="label">Summary</div>
+                <div class="small fw-bold" id="summary"></div>
             </div>
         </div>
 
         <div class="filter-bar">
             <input type="search" id="filter" placeholder="Filter POS items…">
-            <label class="small fw-bold d-flex align-items-center gap-1"><input type="checkbox" id="only-unmapped"> Only unmapped</label>
+            <label class="small fw-bold d-flex align-items-center gap-1"><input type="checkbox" id="only-new"> Only "New item" rows</label>
+            {% if not locked %}
+            <div class="bulk-bar">
+                <span class="small fw-bold" title="Rows already linked to an existing recipe or item are left alone">Set shown rows (not linked) to:</span>
+                <button type="button" class="btn btn-outline-dark" data-bulk="newitem">New item</button>
+                <button type="button" class="btn btn-outline-dark" data-bulk="newrecipe">New recipe</button>
+                <button type="button" class="btn btn-outline-dark" data-bulk="ignore">Ignore</button>
+            </div>
+            {% endif %}
         </div>
 
         <div class="table-responsive scroll-table">
             <table class="sheet-table sales-lines">
                 <thead>
-                    <tr><th>POS Item</th><th style="width:7%">Qty</th><th style="width:9%">Net</th><th>Recipe</th><th style="width:12%">Location</th></tr>
+                    <tr><th>POS Item</th><th style="width:6%">Qty</th><th style="width:8%">Net</th><th>Stock Mapping</th><th style="width:11%">Location</th></tr>
                 </thead>
                 <tbody id="sales-body">
                     {% for line in lines %}
-                    {% set current = 'ignore' if line.ignore else ('recipe:' ~ line.recipe_id if line.recipe_id else '') %}
-                    <tr class="sale-row {{ 'unmapped' if not current }} {{ 'ignored' if line.ignore }}" data-name="{{ line.pos_name|lower }}">
+                    {% if line.ignore %}{% set mode = 'ignore' %}
+                    {% elif line.recipe_id or line.item_id %}{% set mode = 'existing' %}
+                    {% else %}{% set mode = 'newitem' %}{% endif %}
+                    {% set current = 'recipe:' ~ line.recipe_id if line.recipe_id else ('item:' ~ line.item_id if line.item_id else '') %}
+                    <tr class="sale-row mode-{{ mode }}" data-name="{{ line.pos_name|lower }}">
                         <td>{{ line.pos_name }}</td>
                         <td class="col-right">{{ line.quantity|qty }}</td>
                         <td class="col-right">{{ line.net|money if line.net is not none else '' }}</td>
                         <td>
-                            <select name="map_{{ line.id }}" class="map-select" data-current="{{ current }}">
-                                {% if line.recipe %}<option value="recipe:{{ line.recipe_id }}" selected>{{ line.recipe.name }}</option>
-                                {% elif line.ignore %}<option value="ignore" selected>Ignore (not stock)</option>
-                                {% else %}<option value="">— unmapped —</option>{% endif %}
-                            </select>
+                            <div class="map-modes">
+                                <label><input type="radio" name="mode_{{ line.id }}" value="newitem" {% if mode == 'newitem' %}checked{% endif %}> New item</label>
+                                <label><input type="radio" name="mode_{{ line.id }}" value="newrecipe" {% if mode == 'newrecipe' %}checked{% endif %}> New recipe</label>
+                                <label><input type="radio" name="mode_{{ line.id }}" value="ignore" {% if mode == 'ignore' %}checked{% endif %}> Ignore</label>
+                                <label><input type="radio" name="mode_{{ line.id }}" value="existing" {% if mode == 'existing' %}checked{% endif %}> Existing:</label>
+                                <select name="pick_{{ line.id }}" class="map-select {{ 'dim' if mode != 'existing' }}" data-current="{{ current }}">
+                                    {% if line.recipe %}<option value="recipe:{{ line.recipe_id }}" selected>{{ line.recipe.name }}</option>
+                                    {% elif line.item %}<option value="item:{{ line.item_id }}" selected>{{ line.item.name }} (item)</option>
+                                    {% else %}<option value="">— choose recipe or item —</option>{% endif %}
+                                </select>
+                            </div>
+                            {% if line.recipe and not line.recipe.lines %}
+                            <a href="{{ url_for('recipes.edit_recipe', recipe_id=line.recipe_id) }}" target="_blank" class="small txt-under">No ingredients yet — add ingredients</a>
+                            {% endif %}
                         </td>
                         <td class="col-center small">
-                            {% if line.recipe %}{{ line.recipe.location.name if line.recipe.location else (sales_import.default_location.name ~ ' (default)' if sales_import.default_location else '—') }}{% endif %}
+                            {% if line.recipe and line.recipe.location %}{{ line.recipe.location.name }}
+                            {% elif (line.recipe or line.item) %}{{ sales_import.default_location.name ~ ' (default)' if sales_import.default_location else '—' }}{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -101,13 +127,12 @@
 </div>
 
 <select id="master-options" hidden>
-    <option value="">— unmapped —</option>
-    <option value="ignore">Ignore (not stock)</option>
+    <option value="">— choose recipe or item —</option>
     <optgroup label="Recipes">
         {% for r in recipes %}<option value="recipe:{{ r.id }}">{{ r.name }}</option>{% endfor %}
     </optgroup>
-    <optgroup label="Sold as-is (creates 1-item recipe)">
-        {% for item in items %}<option value="item:{{ item.id }}">{{ item.name }}</option>{% endfor %}
+    <optgroup label="Items (sold as-is, 1 pack per sale)">
+        {% for item in items %}<option value="item:{{ item.id }}">{{ item.name }} ({{ item.pack_size|float|qty }} {{ item.unit }})</option>{% endfor %}
     </optgroup>
 </select>
 {% endblock %}
@@ -118,32 +143,89 @@
     const master = document.getElementById('master-options');
     const locked = {{ 'true' if locked else 'false' }};
     const rows = Array.from(document.querySelectorAll('.sale-row'));
+    const summary = document.getElementById('summary');
+    const MODES = ['newitem', 'newrecipe', 'ignore', 'existing'];
 
-    if (!locked) {
-        rows.forEach(function (row) {
-            const select = row.querySelector('.map-select');
-            const current = select.dataset.current;
-            select.innerHTML = master.innerHTML;
-            select.value = current;
-            select.addEventListener('change', function () {
-                row.classList.toggle('unmapped', !select.value);
-                row.classList.toggle('ignored', select.value === 'ignore');
-            });
-        });
+    function rowMode(row) {
+        const checked = row.querySelector('input[type="radio"]:checked');
+        return checked ? checked.value : 'newitem';
     }
 
+    function setRowMode(row, mode) {
+        const radio = row.querySelector('input[type="radio"][value="' + mode + '"]');
+        if (radio) radio.checked = true;
+        refreshRow(row);
+    }
+
+    function refreshRow(row) {
+        const mode = rowMode(row);
+        MODES.forEach(function (m) { row.classList.toggle('mode-' + m, m === mode); });
+        row.querySelector('.map-select').classList.toggle('dim', mode !== 'existing');
+    }
+
+    function refreshSummary() {
+        const counts = { newitem: 0, newrecipe: 0, ignore: 0, existing: 0 };
+        rows.forEach(function (row) { counts[rowMode(row)] += 1; });
+        summary.textContent = counts.existing + ' linked · ' + counts.newitem + ' new items · '
+            + counts.newrecipe + ' new recipes · ' + counts.ignore + ' ignored';
+    }
+
+    function fillSelect(select) {
+        if (select.dataset.filled) return;
+        const current = select.dataset.current;
+        select.innerHTML = master.innerHTML;
+        select.value = current;
+        select.dataset.filled = '1';
+    }
+
+    rows.forEach(function (row) {
+        const select = row.querySelector('.map-select');
+        if (!locked) {
+            // Options are filled on first use to keep the page fast with hundreds of rows
+            select.addEventListener('focus', function () { fillSelect(select); });
+            select.addEventListener('mousedown', function () { fillSelect(select); });
+            select.addEventListener('change', function () {
+                if (select.value) setRowMode(row, 'existing');
+                refreshSummary();
+            });
+        }
+        row.querySelectorAll('input[type="radio"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                refreshRow(row);
+                if (radio.value === 'existing') { fillSelect(select); select.focus(); }
+                refreshSummary();
+            });
+        });
+    });
+
+    document.querySelectorAll('[data-bulk]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const mode = btn.dataset.bulk;
+            let changed = 0;
+            rows.forEach(function (row) {
+                if (row.style.display === 'none' || rowMode(row) === 'existing') return;
+                setRowMode(row, mode);
+                changed += 1;
+            });
+            refreshSummary();
+            btn.blur();
+            if (!changed) alert('No unlinked rows shown — adjust the filter.');
+        });
+    });
+
     const filter = document.getElementById('filter');
-    const onlyUnmapped = document.getElementById('only-unmapped');
+    const onlyNew = document.getElementById('only-new');
     function applyFilter() {
         const term = filter.value.trim().toLowerCase();
         rows.forEach(function (row) {
             const matches = !term || row.dataset.name.indexOf(term) !== -1;
-            const show = matches && (!onlyUnmapped.checked || row.classList.contains('unmapped'));
+            const show = matches && (!onlyNew.checked || rowMode(row) === 'newitem');
             row.style.display = show ? '' : 'none';
         });
     }
     filter.addEventListener('input', applyFilter);
-    onlyUnmapped.addEventListener('change', applyFilter);
+    onlyNew.addEventListener('change', applyFilter);
+    refreshSummary();
 })();
 </script>
 {% endblock %}

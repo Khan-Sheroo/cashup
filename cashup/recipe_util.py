@@ -27,6 +27,15 @@ def is_valid_unit(unit: str | None) -> bool:
     return (unit or '') in UNIT_VALUES
 
 
+# Suggested stock categories (users can type their own too)
+DEFAULT_CATEGORIES = (
+    'Spirits', 'Liqueurs', 'Wine', 'Sparkling Wine', 'Beer', 'Cider', 'Soft Drinks', 'Water',
+    'Juices', 'Mixers', 'Coffee & Tea', 'Meat', 'Poultry', 'Seafood', 'Vegetables', 'Fruit',
+    'Herbs', 'Spices', 'Dairy & Eggs', 'Long Life', 'Dry Goods', 'Sauces & Condiments', 'Oils & Vinegars', 'Bakery',
+    'Desserts', 'Frozen', 'Packaging', 'Cleaning',
+)
+
+
 # Units an invoice quantity can be expressed in ('unit' = per item/pack as sold)
 INVOICE_QTY_UNITS = (
     ('unit', 'Unit'),

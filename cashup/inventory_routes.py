@@ -20,6 +20,8 @@ from cashup.inventory_import import (
     parse_sales_csv, parse_stock_take_file, suggest_match, to_dec,
 )
 from cashup.inventory_util import last_movement_dates, on_hand_map, period_summary, explode_recipe
+from cashup.category_rules import guess_category
+from cashup.recipe_routes import _matching_category, category_suggestions
 from cashup.recipe_util import INVOICE_QTY_UNIT_VALUES, INVOICE_QTY_UNITS, unit_conversion
 from cashup.models import (
     MOVEMENT_KINDS, CostItem, Invoice, InvoiceLine, Location, PosItemAlias, Recipe, RecipeLine,
@@ -61,7 +63,7 @@ def _items_sorted(include_inactive=False):
     if not include_inactive:
         query = query.filter_by(active=True)
     items = query.all()
-    items.sort(key=lambda i: ((i.category or 'zzz').lower(), i.name.lower()))
+    items.sort(key=lambda i: ((i.category or '\uffff').lower(), i.name.lower()))
     return items
 
 
@@ -93,11 +95,18 @@ def stock():
     totals = on_hand_map(location.id if location else None)
     last_dates = last_movement_dates(location.id if location else None)
 
+    selected_category = request.args.get('category', '')
     rows = []
     grand_value = ZERO
+    categories: dict[str, int] = {}
     for item in _items_sorted(include_inactive=True):
         qty = totals.get(item.id, ZERO)
         if not item.active and qty == 0:
+            continue
+        categories[item.category or ''] = categories.get(item.category or '', 0) + 1
+        if selected_category == '__none__' and item.category:
+            continue
+        if selected_category not in ('', '__none__') and item.category != selected_category:
             continue
         value = qty * item.cost_per_unit()
         grand_value += value
@@ -119,6 +128,10 @@ def stock():
         'inventory/stock.html',
         rows=rows, locations=locations, location=location, selected=selected,
         grand_value=grand_value,
+        category_counts=sorted(((c, n) for c, n in categories.items() if c), key=lambda x: x[0].lower()),
+        uncategorised_count=categories.get('', 0),
+        selected_category=selected_category,
+        category_suggestions=category_suggestions(),
     )
 
 
@@ -425,6 +438,7 @@ def _item_for_unmatched_line(line):
             unit_conversion(line.qty_unit, unit) or Decimal('1')),
         count_unit=None if unit == 'each' else line.qty_unit,
         count_factor=None,
+        category=_matching_category(guess_category(name)),
         active=True,
     )
     db.session.add(item)
@@ -646,25 +660,28 @@ def upload_sales():
     db.session.flush()
 
     recipe_candidates = {normalize_name(r.name): r.id for r in Recipe.query.all()}
+    item_candidates = _item_candidates()
     aliases = {a.pos_name_key: a for a in PosItemAlias.query.all()}
     for order, row in enumerate(parsed['rows']):
         key = normalize_name(row['name'])
         alias = aliases.get(key)
-        recipe_id = None
+        recipe_id = item_id = None
         ignore = False
         if alias is not None:
-            recipe_id, ignore = alias.recipe_id, alias.ignore
+            recipe_id, item_id, ignore = alias.recipe_id, alias.item_id, alias.ignore
         else:
             recipe_id = suggest_match(row['name'], recipe_candidates, cutoff=0.85)
+            if recipe_id is None:
+                item_id = suggest_match(row['name'], item_candidates, cutoff=0.85)
         sales_import.lines.append(SalesLine(
             pos_name=row['name'][:255], quantity=row['quantity'], gross=row['gross'],
-            discount=row['discount'], net=row['net'], recipe_id=recipe_id, ignore=ignore,
-            sort_order=order,
+            discount=row['discount'], net=row['net'], recipe_id=recipe_id, item_id=item_id,
+            ignore=ignore, sort_order=order,
         ))
     db.session.commit()
-    mapped = sum(1 for l in sales_import.lines if l.recipe_id or l.ignore)
+    mapped = sum(1 for l in sales_import.lines if l.is_mapped)
     flash(f'Read {len(sales_import.lines)} items ({mapped} already mapped). '
-          f'Map the rest to recipes, then confirm.', 'success')
+          f'Map the rest to recipes or items, then confirm.', 'success')
     return redirect(url_for('inventory.review_sales', import_id=sales_import.id))
 
 
@@ -675,7 +692,7 @@ def review_sales(import_id):
         if sales_import.status == 'confirmed':
             flash('Already confirmed — reverse it first to edit', 'error')
             return redirect(url_for('inventory.review_sales', import_id=sales_import.id))
-        created = _save_sales_form(sales_import)
+        _save_sales_form(sales_import)
         action = request.form.get('action', 'save')
         if action == 'confirm':
             errors = _confirm_sales(sales_import)
@@ -685,22 +702,29 @@ def review_sales(import_id):
                     flash(err, 'error')
                 return redirect(url_for('inventory.review_sales', import_id=sales_import.id))
         db.session.commit()
-        if created:
-            flash(f'Created {created} one-item recipe{"s" if created != 1 else ""} '
-                  f'— check their quantities on the Recipes page', 'info')
         flash('Sales confirmed — stock usage posted' if action == 'confirm' else 'Mappings saved',
               'success')
         return redirect(url_for('inventory.review_sales', import_id=sales_import.id))
 
     recipes = Recipe.query.order_by(Recipe.name).all()
-    lines = sorted(sales_import.lines,
-                   key=lambda l: (bool(l.recipe_id or l.ignore), l.sort_order))
+    lines = sorted(sales_import.lines, key=lambda l: (l.is_mapped, l.sort_order))
     return render_template(
         'inventory/sales_review.html',
         sales_import=sales_import, lines=lines, recipes=recipes, items=_items_sorted(),
         locations=[loc for loc in Location.ordered()],
-        unmapped=sum(1 for l in sales_import.lines if not (l.recipe_id or l.ignore)),
+        unmapped=sum(1 for l in sales_import.lines if not l.is_mapped),
     )
+
+
+def _remember_pos_mapping(line):
+    key = normalize_name(line.pos_name)
+    alias = PosItemAlias.query.filter_by(pos_name_key=key).first()
+    if alias is None:
+        alias = PosItemAlias(pos_name_key=key)
+        db.session.add(alias)
+    alias.recipe_id = line.recipe_id
+    alias.item_id = line.item_id
+    alias.ignore = line.ignore
 
 
 def _save_sales_form(sales_import):
@@ -708,63 +732,115 @@ def _save_sales_form(sales_import):
     sales_import.start_date = _parse_date(form.get('start_date'), sales_import.start_date)
     sales_import.end_date = _parse_date(form.get('end_date'), sales_import.end_date)
     sales_import.default_location_id = _parse_int(form.get('default_location_id'))
-    created = 0
-    created_by_item: dict[int, Recipe] = {}
     for line in sales_import.lines:
-        value = form.get(f'map_{line.id}')
+        mode = form.get(f'mode_{line.id}')
+        if mode is not None:
+            pick = form.get(f'pick_{line.id}') or ''
+            value = {'newitem': '', 'newrecipe': 'newrecipe', 'ignore': 'ignore'}.get(mode, pick)
+        else:
+            value = form.get(f'map_{line.id}')
         if value is None:
             continue
-        key = normalize_name(line.pos_name)
         line.recipe_id = None
+        line.item_id = None
         line.ignore = False
         if value == 'ignore':
             line.ignore = True
+        elif value == 'newrecipe':
+            line.recipe_id = _empty_recipe_for_sale(line, sales_import.default_location_id).id
         elif value.startswith('item:'):
-            item = CostItem.query.get(_parse_int(value[5:]))
-            if item is not None:
-                recipe = Recipe.query.filter_by(name=line.pos_name).first()
-                if recipe is None:
-                    recipe = Recipe(name=line.pos_name, location_id=sales_import.default_location_id,
-                                    notes='Created from sales mix')
-                    recipe.lines.append(RecipeLine(item_id=item.id, quantity=item.pack_size or 1))
-                    db.session.add(recipe)
-                    db.session.flush()
-                    created += 1
-                created_by_item[item.id] = recipe
-                line.recipe_id = recipe.id
+            line.item_id = _parse_int(value[5:])
         elif value.startswith('recipe:'):
             line.recipe_id = _parse_int(value[7:])
-        if line.recipe_id or line.ignore:
-            alias = PosItemAlias.query.filter_by(pos_name_key=key).first()
-            if alias is None:
-                alias = PosItemAlias(pos_name_key=key)
-                db.session.add(alias)
-            alias.recipe_id = line.recipe_id
-            alias.ignore = line.ignore
-    return created
+        if line.is_mapped:
+            _remember_pos_mapping(line)
+
+
+def _empty_recipe_for_sale(line, location_id):
+    """Existing recipe with the POS name, or a new one with no ingredients yet."""
+    name = line.pos_name.strip()[:200] or 'POS Item'
+    recipe = Recipe.query.filter(db.func.lower(Recipe.name) == name.lower()).first()
+    if recipe is not None:
+        return recipe
+    sale_price = None
+    if line.gross and line.quantity:
+        sale_price = (Decimal(line.gross) / Decimal(line.quantity)).quantize(Decimal('0.01'))
+    recipe = Recipe(name=name, sale_price=sale_price, location_id=location_id,
+                    notes='Created from sales mix — add ingredients')
+    db.session.add(recipe)
+    db.session.flush()
+    return recipe
+
+
+def _item_for_unmapped_sale(line):
+    """Existing item with the POS name, or a new 1-each item. Returns (item, created)."""
+    name = line.pos_name.strip()[:200] or 'POS Item'
+    item = CostItem.query.filter(db.func.lower(CostItem.name) == name.lower()).first()
+    if item is not None:
+        return item, False
+    item = CostItem(name=name, unit='each', pack_size=Decimal('1'), cost_price=ZERO,
+                    category=_matching_category(guess_category(name, menu_item=True)) or 'From Sales Mix',
+                    active=True)
+    db.session.add(item)
+    db.session.flush()
+    return item, True
 
 
 def _confirm_sales(sales_import):
     errors = []
-    unmapped = [l for l in sales_import.lines if not (l.recipe_id or l.ignore)]
-    if unmapped:
-        errors.append(f'{len(unmapped)} POS items are not mapped — choose a recipe or Ignore')
-    usage: dict[tuple[int, int], Decimal] = {}
+    default_location = sales_import.default_location_id
+    unmapped = [l for l in sales_import.lines if not l.is_mapped]
+    item_lines = [l for l in sales_import.lines if l.item_id and not l.ignore]
+    if (unmapped or item_lines) and not default_location:
+        errors.append('Choose a Default Location — items sold as-is and new items are '
+                      'taken from that location')
     for line in sales_import.lines:
         if line.ignore or not line.recipe_id:
             continue
         recipe = Recipe.query.get(line.recipe_id)
-        location_id = recipe.location_id or sales_import.default_location_id
-        if not location_id:
+        if recipe.lines and not (recipe.location_id or default_location):
             errors.append(f'Recipe "{recipe.name}" has no location — set one or choose a default')
-            continue
-        if not recipe.lines:
-            errors.append(f'Recipe "{recipe.name}" has no ingredients')
-            continue
-        for item_id, qty in explode_recipe(recipe, line.quantity).items():
-            usage[(item_id, location_id)] = usage.get((item_id, location_id), ZERO) + qty
     if errors:
         return errors
+
+    empty = sorted({Recipe.query.get(l.recipe_id).name for l in sales_import.lines
+                    if l.recipe_id and not l.ignore and not Recipe.query.get(l.recipe_id).lines})
+    if empty:
+        flash(f'{len(empty)} recipe{"s have" if len(empty) != 1 else " has"} no ingredients yet, so '
+              f'no stock was used for: {", ".join(empty[:10])}{"…" if len(empty) > 10 else ""}. '
+              f'Add ingredients, then Reverse and Confirm this sales mix again to include them.',
+              'warning')
+
+    created = []
+    for line in unmapped:
+        item, is_new = _item_for_unmapped_sale(line)
+        line.item_id = item.id
+        _remember_pos_mapping(line)
+        if is_new:
+            created.append(item.name)
+    if created:
+        flash(f'Added {len(created)} new item{"s" if len(created) != 1 else ""} from the sales mix '
+              f'(auto-categorised where recognised, otherwise "From Sales Mix"): '
+              f'{", ".join(created[:10])}'
+              f'{"…" if len(created) > 10 else ""}. Set their cost and count unit on the Items page.',
+              'info')
+
+    usage: dict[tuple[int, int], Decimal] = {}
+
+    def add_usage(item_id, location_id, qty):
+        usage[(item_id, location_id)] = usage.get((item_id, location_id), ZERO) + qty
+
+    for line in sales_import.lines:
+        if line.ignore:
+            continue
+        if line.recipe_id:
+            recipe = Recipe.query.get(line.recipe_id)
+            location_id = recipe.location_id or default_location
+            for item_id, qty in explode_recipe(recipe, line.quantity).items():
+                add_usage(item_id, location_id, qty)
+        elif line.item_id:
+            item = CostItem.query.get(line.item_id)
+            add_usage(item.id, default_location, Decimal(line.quantity or 0) * Decimal(item.pack_size or 1))
 
     note = f'Sales {sales_import.start_date:%d/%m} – {sales_import.end_date:%d/%m/%Y}'
     items = {i.id: i for i in CostItem.query.filter(
@@ -830,8 +906,11 @@ def new_stocktake():
     return redirect(url_for('inventory.count_stocktake', take_id=take.id))
 
 
-def _count_items(take, show_all=False):
-    """Items shown on a count sheet: anything with history at the location, or all active."""
+def _count_items(take, show_all=False, categories=None):
+    """Items shown on a count sheet: anything with history at the location, or all active.
+
+    categories: optional list of category names to keep ('' = Uncategorised).
+    """
     counted_ids = {line.item_id for line in take.lines}
     if show_all:
         items = _items_sorted()
@@ -843,14 +922,52 @@ def _count_items(take, show_all=False):
                      .filter(StockMovement.location_id == take.location_id).distinct()}
         ids = moved_ids | counted_ids
         items = CostItem.query.filter(CostItem.id.in_(ids)).all() if ids else []
-    items.sort(key=lambda i: ((i.category or 'zzz').lower(), i.name.lower()))
+    if categories:
+        wanted = set(categories)
+        items = [i for i in items if (i.category or '') in wanted]
+    items.sort(key=lambda i: ((i.category or '\uffff').lower(), i.name.lower()))
     return items
+
+
+def _count_sheet_args():
+    """show_all / categories from the query string, shared by the print and Excel sheets."""
+    show_all = request.args.get('only') != '1'
+    categories = [c for c in request.args.getlist('cat')] or None
+    return show_all, categories
+
+
+@inventory_bp.route('/stocktakes/<int:take_id>/count-sheet')
+def print_count_sheet(take_id):
+    take = StockTake.query.get_or_404(take_id)
+    show_all, categories = _count_sheet_args()
+    items = _count_items(take, show_all, categories)
+    counts = {line.item_id: line.counted for line in take.lines}
+    return render_template('inventory/count_sheet_print.html', items=items,
+                           location_name=take.location.name, count_date=take.count_date,
+                           back_url=url_for('inventory.count_stocktake', take_id=take.id),
+                           counts=counts, with_counts=request.args.get('counts') == '1',
+                           categories=categories)
+
+
+@inventory_bp.route('/count-sheet')
+def print_blank_count_sheet():
+    """Full categorised count sheet for a location, without opening a stock take first."""
+    location = Location.query.get(
+        _parse_int(request.args.get('location') or request.args.get('location_id')))
+    categories = request.args.getlist('cat') or None
+    items = _items_sorted()
+    if categories:
+        items = [i for i in items if (i.category or '') in set(categories)]
+    return render_template('inventory/count_sheet_print.html', items=items,
+                           location_name=location.name if location else 'All Locations',
+                           count_date=None, back_url=url_for('inventory.stocktakes'),
+                           counts={}, with_counts=False, categories=categories)
 
 
 @inventory_bp.route('/stocktakes/<int:take_id>', methods=['GET', 'POST'])
 def count_stocktake(take_id):
     take = StockTake.query.get_or_404(take_id)
-    show_all = request.args.get('all') == '1'
+    show_all = request.args.get('only') != '1'
     if request.method == 'POST':
         if take.status == 'confirmed':
             flash('Stock take is confirmed — reverse it first to edit', 'error')
@@ -888,11 +1005,14 @@ def count_stocktake(take_id):
         db.session.commit()
         flash('Counts saved', 'success')
         return redirect(url_for('inventory.count_stocktake', take_id=take.id,
-                                all='1' if request.form.get('show_all') == '1' else None))
+                                only='1' if request.form.get('show_all') == '0' else None))
 
     counts = {line.item_id: line.counted for line in take.lines}
+    sheet_categories = sorted({i.category or '' for i in _count_items(take, show_all)},
+                              key=lambda c: (c == '', c.lower()))
     return render_template('inventory/stocktake_count.html', take=take,
-                           items=_count_items(take, show_all), counts=counts, show_all=show_all)
+                           items=_count_items(take, show_all), counts=counts, show_all=show_all,
+                           sheet_categories=sheet_categories)
 
 
 def _confirm_stocktake(take):
@@ -955,43 +1075,67 @@ def upload_stocktake(take_id):
     if unmatched:
         msg += f' — {len(unmatched)} rows did not match an item (listed below)'
     flash(msg, 'warning' if unmatched else 'success')
-    return redirect(url_for('inventory.count_stocktake', take_id=take.id, all='1'))
+    return redirect(url_for('inventory.count_stocktake', take_id=take.id))
 
 
 @inventory_bp.route('/stocktakes/<int:take_id>/template.xlsx')
 def stocktake_template(take_id):
     import openpyxl
-    from openpyxl.styles import Font, PatternFill
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
     take = StockTake.query.get_or_404(take_id)
+    show_all, categories = _count_sheet_args()
     counts = {line.item_id: line.counted for line in take.lines}
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = 'Count'
-    ws.append([f'{take.location.name} Stock Take', f'{take.count_date:%d/%m/%Y}'])
-    ws.append([])
-    ws.append(['Item ID', 'Category', 'Description', 'Count Unit', 'Physical Count'])
+    ws.append([f'{take.location.name} Stock Take', None, f'Count date: {take.count_date:%d/%m/%Y}'])
+    ws.cell(1, 1).font = Font(bold=True, size=14)
+    ws.append(['Counted by: ____________________', None, 'Checked by: ____________________'])
+    ws.append(['Item ID', 'Category', 'Description', 'Count Unit', 'Physical Count', 'Notes'])
+    header_fill = PatternFill('solid', fgColor='DDDDDD')
+    cat_fill = PatternFill('solid', fgColor='EEEEEE')
+    thin = Side(style='thin', color='333333')
+    box = Border(left=thin, right=thin, top=thin, bottom=thin)
     for cell in ws[3]:
         cell.font = Font(bold=True)
-        cell.fill = PatternFill('solid', fgColor='DDDDDD')
+        cell.fill = header_fill
+        cell.border = box
     current_category = object()
-    for item in _count_items(take, show_all=request.args.get('all') == '1'):
+    for item in _count_items(take, show_all, categories):
         if item.category != current_category:
             current_category = item.category
-            ws.append([None, None, item.category or 'Uncategorised'])
-            ws.cell(ws.max_row, 3).font = Font(bold=True)
+            ws.append([None, None, (item.category or 'Uncategorised').upper()])
+            for cell in ws[ws.max_row]:
+                cell.fill = cat_fill
+                cell.font = Font(bold=True)
+                cell.border = box
         counted = counts.get(item.id)
         ws.append([item.id, item.category or '', item.name, item.count_unit_label(),
-                   float(counted) if counted is not None else None])
-    ws.column_dimensions['A'].hidden = True
-    ws.column_dimensions['B'].width = 16
-    ws.column_dimensions['C'].width = 40
-    ws.column_dimensions['D'].width = 14
-    ws.column_dimensions['E'].width = 16
+                   float(counted) if counted is not None else None, None])
+        for cell in ws[ws.max_row]:
+            cell.border = box
+        ws.cell(ws.max_row, 1).alignment = Alignment(horizontal='center')
+    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['B'].hidden = True
+    ws.column_dimensions['C'].width = 42
+    ws.column_dimensions['D'].width = 12
+    ws.column_dimensions['E'].width = 15
+    ws.column_dimensions['F'].width = 22
+    ws.freeze_panes = 'A4'
+    ws.print_title_rows = '3:3'
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.orientation = 'portrait'
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.oddFooter.center.text = 'Page &P of &N'
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
-    name = f'stock_take_{take.location.name.replace(" ", "_")}_{take.count_date:%Y-%m-%d}.xlsx'
+    suffix = ('_' + secure_filename('-'.join(c or 'Uncategorised' for c in categories)[:40])
+              if categories else '')
+    name = f'stock_take_{take.location.name.replace(" ", "_")}_{take.count_date:%Y-%m-%d}{suffix}.xlsx'
     return send_file(buffer, as_attachment=True, download_name=name,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -1042,6 +1186,133 @@ def delete_stocktake(take_id):
     db.session.commit()
     flash('Stock take deleted', 'success')
     return redirect(url_for('inventory.stocktakes'))
+
+
+# ---------------------------------------------------------------------------
+# Testing tools
+# ---------------------------------------------------------------------------
+
+def _backup_database() -> Path | None:
+    """Copy the SQLite database to instance/backups before a destructive reset."""
+    import sqlite3
+    db_path = db.engine.url.database
+    if not db_path or db_path == ':memory:':
+        return None
+    backup_dir = Path(current_app.instance_path) / 'backups'
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    target = backup_dir / f'cashup-before-reset-{datetime.now():%Y%m%d-%H%M%S}.db'
+    db.session.commit()
+    src = sqlite3.connect(db_path)
+    dst = sqlite3.connect(str(target))
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+    return target
+
+
+def _upload_created_items(lines, created_after) -> set[int]:
+    """Items first created by these uploads (made at/after the upload started)."""
+    ids = set()
+    for line, started in zip(lines, created_after):
+        item = CostItem.query.get(line.item_id) if line.item_id else None
+        if item is not None and item.created_at >= started:
+            ids.add(item.id)
+    return ids
+
+
+def _item_still_used(item_id) -> bool:
+    return any((
+        RecipeLine.query.filter_by(item_id=item_id).first(),
+        StockMovement.query.filter_by(item_id=item_id).first(),
+        RequisitionLine.query.filter_by(item_id=item_id).first(),
+        StockTakeLine.query.filter_by(item_id=item_id).first(),
+        InvoiceLine.query.filter_by(item_id=item_id).first(),
+        SalesLine.query.filter_by(item_id=item_id).first(),
+    ))
+
+
+@inventory_bp.route('/testing', methods=['GET', 'POST'])
+def testing_tools():
+    counts = {
+        'sales': SalesImport.query.count(),
+        'invoices': Invoice.query.count(),
+        'pos_aliases': PosItemAlias.query.count(),
+        'supplier_aliases': SupplierItemAlias.query.count(),
+        'categorised': CostItem.query.filter(CostItem.category.isnot(None),
+                                             CostItem.category != '').count(),
+    }
+    if request.method == 'GET':
+        return render_template('inventory/testing.html', counts=counts)
+
+    form = request.form
+    if (form.get('confirm_text') or '').strip().upper() != 'CLEAR':
+        flash('Type CLEAR in the box to confirm', 'error')
+        return redirect(url_for('inventory.testing_tools'))
+    clear_sales = form.get('clear_sales') == 'on'
+    clear_invoices = form.get('clear_invoices') == 'on'
+    clear_items = form.get('clear_items') == 'on'
+    clear_categories = form.get('clear_categories') == 'on'
+    if not any((clear_sales, clear_invoices, clear_categories)):
+        flash('Tick at least one thing to clear', 'error')
+        return redirect(url_for('inventory.testing_tools'))
+
+    backup = _backup_database()
+    done = []
+    candidate_items: set[int] = set()
+    empty_recipe_ids: set[int] = set()
+
+    if clear_sales:
+        imports = SalesImport.query.all()
+        lines = [l for s in imports for l in s.lines]
+        candidate_items |= _upload_created_items(lines, [s.created_at for s in imports
+                                                         for _ in s.lines])
+        empty_recipe_ids = {l.recipe_id for l in lines if l.recipe_id}
+        for s in imports:
+            StockMovement.query.filter_by(sales_import_id=s.id).delete()
+            db.session.delete(s)
+        n_alias = PosItemAlias.query.delete()
+        db.session.flush()
+        for recipe_id in empty_recipe_ids:
+            recipe = Recipe.query.get(recipe_id)
+            if (recipe is not None and not recipe.lines
+                    and (recipe.notes or '').startswith('Created from sales mix')):
+                db.session.delete(recipe)
+        done.append(f'{len(imports)} sales mix upload(s) and {n_alias} remembered POS mapping(s)')
+
+    if clear_invoices:
+        invoices = Invoice.query.all()
+        lines = [l for inv in invoices for l in inv.lines]
+        candidate_items |= _upload_created_items(lines, [inv.created_at for inv in invoices
+                                                         for _ in inv.lines])
+        for inv in invoices:
+            StockMovement.query.filter_by(invoice_id=inv.id).delete()
+            if inv.stored_filename:
+                path = _upload_dir('invoices') / inv.stored_filename
+                if path.exists():
+                    path.unlink()
+            db.session.delete(inv)
+        n_alias = SupplierItemAlias.query.delete()
+        done.append(f'{len(invoices)} invoice(s) and {n_alias} remembered supplier mapping(s)')
+
+    db.session.flush()
+    if clear_items and candidate_items:
+        removed = 0
+        for item_id in candidate_items:
+            if not _item_still_used(item_id):
+                db.session.delete(CostItem.query.get(item_id))
+                removed += 1
+        done.append(f'{removed} item(s) that those uploads had created')
+
+    if clear_categories:
+        n = CostItem.query.update({CostItem.category: None}, synchronize_session=False)
+        done.append(f'categories on {n} item(s)')
+
+    db.session.commit()
+    flash('Cleared ' + '; '.join(done) + '.'
+          + (f' Backup saved to {backup}' if backup else ''), 'success')
+    return redirect(url_for('inventory.testing_tools'))
 
 
 @inventory_bp.app_context_processor

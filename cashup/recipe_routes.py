@@ -1,8 +1,9 @@
 """Recipe cost calculator: items masterlist and recipes."""
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from cashup import db
-from cashup.models import CostItem, Location, Recipe, RecipeLine
-from cashup.recipe_util import COMMON_UNITS, is_valid_unit, to_decimal
+from cashup.category_rules import guess_category
+from cashup.models import CostItem, InvoiceLine, Location, Recipe, RecipeLine, SalesLine
+from cashup.recipe_util import COMMON_UNITS, DEFAULT_CATEGORIES, is_valid_unit, to_decimal
 
 recipes_bp = Blueprint('recipes', __name__, url_prefix='/recipes')
 
@@ -80,6 +81,32 @@ def _render_recipe_form(recipe, items):
 def list_recipes():
     """List all recipes with cost and margin."""
     return render_template('recipes/list.html', rows=_recipe_list_rows())
+
+
+@recipes_bp.route('/import-workbook', methods=['POST'])
+def import_workbook_route():
+    """Import items and recipes from the Recipe Costing .xlsm workbook."""
+    from cashup.inventory_routes import _backup_database
+    from cashup.recipe_workbook_import import import_workbook
+
+    upload = request.files.get('file')
+    if not upload or not upload.filename:
+        flash('Choose the costing workbook (.xlsm / .xlsx)', 'error')
+        return redirect(url_for('recipes.list_recipes'))
+    _backup_database()
+    try:
+        report = import_workbook(upload, source_name=upload.filename)
+        db.session.commit()
+    except Exception as exc:  # noqa: BLE001
+        db.session.rollback()
+        flash(f'Could not import workbook: {exc}', 'error')
+        return redirect(url_for('recipes.list_recipes'))
+    flash(f'Imported {len(report.recipes_created)} new and {len(report.recipes_updated)} updated recipes; '
+          f'{len(report.items_created)} new items ({len(set(report.items_reused))} existing items reused); '
+          f'{len(report.pos_linked)} sales mix names linked to recipes.', 'success')
+    if report.warnings:
+        flash('Check: ' + ' · '.join(report.warnings[:12]), 'warning')
+    return redirect(url_for('recipes.list_recipes'))
 
 
 @recipes_bp.route('/print')
@@ -190,24 +217,134 @@ def delete_recipe(recipe_id):
     return redirect(url_for('recipes.list_recipes'))
 
 
-@recipes_bp.route('/items')
-def list_items():
-    """Master list of cost items."""
-    items = CostItem.query.all()
-    items.sort(key=lambda i: ((i.category or 'zzz').lower(), i.name.lower()))
-    return render_template('recipes/items.html', items=items, common_units=COMMON_UNITS)
-
-
-def _render_item_form(item):
-    categories = sorted({
+def used_categories() -> list[str]:
+    return sorted({
         c for (c,) in db.session.query(CostItem.category).filter(CostItem.category.isnot(None)).distinct()
         if c
     }, key=str.lower)
+
+
+def category_suggestions() -> list[str]:
+    """Categories in use first, then the defaults not yet used."""
+    used = used_categories()
+    used_lower = {c.lower() for c in used}
+    return used + [c for c in DEFAULT_CATEGORIES if c.lower() not in used_lower]
+
+
+@recipes_bp.route('/items')
+def list_items():
+    """Master list of cost items, grouped by category."""
+    selected = request.args.get('category', '')
+    items = CostItem.query.all()
+    counts: dict[str, int] = {}
+    for item in items:
+        key = item.category or ''
+        counts[key] = counts.get(key, 0) + 1
+    if selected == '__none__':
+        items = [i for i in items if not i.category]
+    elif selected:
+        items = [i for i in items if (i.category or '') == selected]
+    items.sort(key=lambda i: ((i.category or '\uffff').lower(), i.name.lower()))
+    category_counts = sorted(((c, n) for c, n in counts.items() if c), key=lambda x: x[0].lower())
+    return render_template(
+        'recipes/items.html',
+        items=items,
+        common_units=COMMON_UNITS,
+        category_counts=category_counts,
+        uncategorised_count=counts.get('', 0),
+        selected_category=selected,
+        category_suggestions=category_suggestions(),
+    )
+
+
+def _safe_next(default_endpoint):
+    target = request.form.get('next') or ''
+    if target.startswith('/') and not target.startswith('//'):
+        return target
+    return url_for(default_endpoint)
+
+
+@recipes_bp.route('/items/categorize', methods=['POST'])
+def categorize_items():
+    """Assign (or clear) the category on several items at once."""
+    ids = []
+    for raw in request.form.getlist('item_ids'):
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    category = (request.form.get('category') or '').strip()[:80] or None
+    if not ids:
+        flash('Tick at least one item first', 'error')
+        return redirect(_safe_next('recipes.list_items'))
+    if category:
+        existing = next((c for c in used_categories() if c.lower() == category.lower()), None)
+        category = existing or category
+    items = CostItem.query.filter(CostItem.id.in_(ids)).all()
+    for item in items:
+        item.category = category
+    db.session.commit()
+    flash(f'{len(items)} item{"s" if len(items) != 1 else ""} moved to '
+          f'{category or "Uncategorised"}', 'success')
+    return redirect(_safe_next('recipes.list_items'))
+
+
+def _matching_category(category):
+    """Reuse the spelling of a category already in use (e.g. 'spirits' -> 'Spirits')."""
+    if not category:
+        return None
+    return next((c for c in used_categories() if c.lower() == category.lower()), category)
+
+
+@recipes_bp.route('/items/auto-categorize', methods=['POST'])
+def auto_categorize_items():
+    """Fill in categories for uncategorised / 'From Sales Mix' items using the name rules."""
+    candidates = CostItem.query.filter(
+        db.or_(CostItem.category.is_(None), CostItem.category == '',
+               CostItem.category == 'From Sales Mix')
+    ).all()
+    sold_ids = {i for (i,) in db.session.query(SalesLine.item_id).filter(SalesLine.item_id.isnot(None))}
+    bought_ids = {i for (i,) in db.session.query(InvoiceLine.item_id).filter(InvoiceLine.item_id.isnot(None))}
+    moved: dict[str, int] = {}
+    for item in candidates:
+        menu_item = item.category == 'From Sales Mix' or (item.id in sold_ids and item.id not in bought_ids)
+        category = _matching_category(guess_category(item.name, menu_item=menu_item))
+        if category and category != item.category:
+            item.category = category
+            moved[category] = moved.get(category, 0) + 1
+    db.session.commit()
+    if moved:
+        summary = ', '.join(f'{c} ({n})' for c, n in sorted(moved.items()))
+        flash(f'Categorised {sum(moved.values())} item(s): {summary}', 'success')
+    else:
+        flash('No uncategorised items matched a category rule', 'info')
+    return redirect(_safe_next('recipes.list_items'))
+
+
+@recipes_bp.route('/categories/rename', methods=['POST'])
+def rename_category():
+    """Rename a category everywhere, or merge it into another one."""
+    old = (request.form.get('old') or '').strip()
+    new = (request.form.get('new') or '').strip()[:80]
+    if not old or not new:
+        flash('Enter the new category name', 'error')
+        return redirect(url_for('recipes.list_items'))
+    existing = next((c for c in used_categories() if c.lower() == new.lower() and c != old), None)
+    target = existing or new
+    count = CostItem.query.filter(CostItem.category == old).update(
+        {CostItem.category: target}, synchronize_session=False)
+    db.session.commit()
+    verb = 'merged into' if existing else 'renamed to'
+    flash(f'Category "{old}" {verb} "{target}" ({count} items)', 'success')
+    return redirect(url_for('recipes.list_items'))
+
+
+def _render_item_form(item):
     return render_template(
         'recipes/item_form.html',
         item=item,
         common_units=COMMON_UNITS,
-        categories=categories,
+        categories=category_suggestions(),
     )
 
 
@@ -253,10 +390,14 @@ def add_item():
         if error:
             flash(error, 'error')
             return _render_item_form(None)
+        guessed = not values['category'] and _matching_category(guess_category(values['name']))
+        if guessed:
+            values['category'] = guessed
         item = CostItem(**values)
         db.session.add(item)
         db.session.commit()
-        flash(f'Item "{item.name}" added', 'success')
+        flash(f'Item "{item.name}" added' + (f' to category "{guessed}"' if guessed else ''),
+              'success')
         return redirect(url_for('recipes.list_items'))
 
     return _render_item_form(None)

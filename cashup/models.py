@@ -645,10 +645,17 @@ class SalesLine(db.Model):
     discount = db.Column(db.Numeric(12, 2), nullable=True)
     net = db.Column(db.Numeric(12, 2), nullable=True)
     recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=True)
+    # Sold as-is: one pack of the item per sale
+    item_id = db.Column(db.Integer, db.ForeignKey('cost_item.id'), nullable=True)
     ignore = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
 
     recipe = db.relationship('Recipe')
+    item = db.relationship('CostItem')
+
+    @property
+    def is_mapped(self) -> bool:
+        return bool(self.recipe_id or self.item_id or self.ignore)
 
 
 class PosItemAlias(db.Model):
@@ -658,6 +665,7 @@ class PosItemAlias(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     pos_name_key = db.Column(db.String(255), nullable=False, unique=True)
     recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=True)
+    item_id = db.Column(db.Integer, db.ForeignKey('cost_item.id'), nullable=True)
     ignore = db.Column(db.Boolean, nullable=False, default=False)
 
     recipe = db.relationship('Recipe')

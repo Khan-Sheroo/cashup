@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Count Sheet {{ location_name }}{{ ' ' ~ count_date.strftime('%d-%m-%Y') if count_date }}</title>
+    <style>
+        @page { margin: 10mm; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 11px; margin: 0; padding: 12px; }
+        h1 { font-size: 18px; margin: 0 0 2px; }
+        .meta { color: #444; margin-bottom: 8px; }
+        .sign { display: flex; gap: 24px; margin: 6px 0 10px; font-size: 11px; }
+        .sign span { flex: 1; border-bottom: 1px solid #111; padding-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #333; padding: 4px 5px; }
+        thead { display: table-header-group; }
+        thead th { background: #e6e6e6; font-size: 10px; text-transform: uppercase; }
+        tr { page-break-inside: avoid; }
+        .cat-row td { background: #d9d9d9; font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+        .cat-row .cat-n { font-weight: 400; text-transform: none; color: #444; }
+        .code { text-align: center; color: #444; width: 7%; }
+        .unit { text-align: center; width: 12%; }
+        .count { width: 16%; height: 20px; text-align: right; font-weight: 700; }
+        .notes { width: 22%; }
+        .no-print { margin-bottom: 10px; display: flex; gap: 8px; align-items: center; }
+        @media print { .no-print { display: none; } body { padding: 0; } }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button onclick="window.print()">Print / Save as PDF</button>
+        <a href="{{ back_url }}">Back</a>
+    </div>
+    <h1>Stock Count Sheet — {{ location_name }}</h1>
+    <div class="meta">
+        Count date {{ count_date.strftime('%d/%m/%Y') if count_date else '____ / ____ / ________' }} · {{ items|length }} items
+        {% if categories %} · {{ categories|map('default', 'Uncategorised', true)|join(', ') }}{% endif %}
+        · Count in the unit shown; leave blank if not counted.
+    </div>
+    <div class="sign">
+        <span>Counted by:</span>
+        <span>Checked by:</span>
+        <span>Time started / finished:</span>
+    </div>
+
+    <table>
+        <thead>
+            <tr><th>Code</th><th>Item</th><th>Count Unit</th><th>Physical Count</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+            {% set ns = namespace(cat=None) %}
+            {% for item in items %}
+                {% if loop.first or item.category != ns.cat %}
+                    {% set ns.cat = item.category %}
+                    {% set group = items|selectattr('category', 'equalto', item.category)|list %}
+                    <tr class="cat-row"><td colspan="5">{{ item.category or 'Uncategorised' }}
+                        <span class="cat-n">— {{ group|length }} item{{ '' if group|length == 1 else 's' }}</span></td></tr>
+                {% endif %}
+                <tr>
+                    <td class="code">{{ item.id }}</td>
+                    <td>{{ item.name }}</td>
+                    <td class="unit">{{ item.count_unit_label() }}</td>
+                    <td class="count">{{ counts[item.id]|qty if with_counts and item.id in counts else '' }}</td>
+                    <td class="notes"></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5" style="text-align:center;color:#777;">No items to count.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

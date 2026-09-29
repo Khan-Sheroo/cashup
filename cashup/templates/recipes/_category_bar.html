@@ -1,0 +1,112 @@
+{# Bulk category assignment. Row checkboxes use form="cat-form" name="item_ids"; group headers use class="cat-all" data-cat="…". #}
+<form id="cat-form" method="POST" action="{{ url_for('recipes.categorize_items') }}">
+    <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+</form>
+<div class="cat-bar">
+    <label class="d-flex align-items-center gap-1 fw-bold small mb-0">
+        <input type="checkbox" id="cat-select-all"> All
+    </label>
+    <span class="small" id="cat-selected">0 selected</span>
+    <input type="text" name="category" form="cat-form" list="cat-suggestions" placeholder="Category (blank = Uncategorised)" class="cat-input">
+    <datalist id="cat-suggestions">
+        {% for cat in category_suggestions %}<option value="{{ cat }}">{% endfor %}
+    </datalist>
+    <button type="submit" form="cat-form" class="btn btn-dark btn-sm" id="cat-assign" disabled>Assign to Selected</button>
+    <span class="ms-auto d-flex gap-1">
+        <button type="button" class="btn btn-outline-dark btn-sm" id="cat-expand-all">Expand All</button>
+        <button type="button" class="btn btn-outline-dark btn-sm" id="cat-collapse-all">Collapse All</button>
+    </span>
+</div>
+<style>
+    .cat-bar {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+        border: 1px solid #333; padding: 0.45rem 0.6rem; margin-bottom: 0.75rem; background: #fafafa;
+    }
+    .cat-bar .cat-input { border: 1px solid #333; border-radius: 0; padding: 0.25rem 0.5rem; min-width: 15rem; }
+    .cat-bar .btn { border-radius: 0; }
+    tr.cat-row input.cat-all { margin-right: 0.4rem; vertical-align: middle; }
+    tr.cat-row { cursor: pointer; user-select: none; }
+    tr.cat-row:hover td { background: #dcdcdc; }
+    tr.cat-row .cat-caret { display: inline-block; width: 1rem; transition: transform 0.15s; }
+    tr.cat-row.collapsed .cat-caret { transform: rotate(-90deg); }
+    tr.cat-hidden { display: none; }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const boxes = Array.from(document.querySelectorAll('input.cat-item'));
+    const groupBoxes = Array.from(document.querySelectorAll('input.cat-all'));
+    const selectAll = document.getElementById('cat-select-all');
+    const label = document.getElementById('cat-selected');
+    const assign = document.getElementById('cat-assign');
+
+    function refresh() {
+        const n = boxes.filter(function (b) { return b.checked; }).length;
+        label.textContent = n + ' selected';
+        assign.disabled = n === 0;
+        groupBoxes.forEach(function (g) {
+            const members = boxes.filter(function (b) { return b.dataset.cat === g.dataset.cat; });
+            g.checked = members.length > 0 && members.every(function (b) { return b.checked; });
+        });
+        selectAll.checked = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+    }
+    boxes.forEach(function (b) { b.addEventListener('change', refresh); });
+    groupBoxes.forEach(function (g) {
+        g.addEventListener('change', function () {
+            boxes.forEach(function (b) { if (b.dataset.cat === g.dataset.cat) b.checked = g.checked; });
+            refresh();
+        });
+    });
+    selectAll.addEventListener('change', function () {
+        boxes.forEach(function (b) { b.checked = selectAll.checked; });
+        refresh();
+    });
+    refresh();
+
+    const storeKey = 'cashup-collapsed:' + location.pathname;
+    let collapsed = [];
+    try { collapsed = JSON.parse(localStorage.getItem(storeKey) || '[]'); } catch (e) { collapsed = []; }
+    const headers = Array.from(document.querySelectorAll('tr.cat-row'));
+
+    function membersOf(header) {
+        const rows = [];
+        let r = header.nextElementSibling;
+        while (r && !r.classList.contains('cat-row')) { rows.push(r); r = r.nextElementSibling; }
+        return rows;
+    }
+    function catOf(header) {
+        const g = header.querySelector('input.cat-all');
+        return g ? g.dataset.cat : '';
+    }
+    function setCollapsed(header, state) {
+        header.classList.toggle('collapsed', state);
+        membersOf(header).forEach(function (r) { r.classList.toggle('cat-hidden', state); });
+    }
+    function save() {
+        localStorage.setItem(storeKey, JSON.stringify(
+            headers.filter(function (h) { return h.classList.contains('collapsed'); }).map(catOf)
+        ));
+    }
+
+    headers.forEach(function (h) {
+        const cell = h.querySelector('td');
+        const caret = document.createElement('span');
+        caret.className = 'cat-caret';
+        caret.textContent = '\u25BE';
+        cell.insertBefore(caret, cell.firstChild);
+        setCollapsed(h, collapsed.indexOf(catOf(h)) !== -1);
+        h.addEventListener('click', function (e) {
+            if (e.target.closest('input, a, button, select')) return;
+            setCollapsed(h, !h.classList.contains('collapsed'));
+            save();
+        });
+    });
+    document.getElementById('cat-expand-all').addEventListener('click', function () {
+        headers.forEach(function (h) { setCollapsed(h, false); });
+        save();
+    });
+    document.getElementById('cat-collapse-all').addEventListener('click', function () {
+        headers.forEach(function (h) { setCollapsed(h, true); });
+        save();
+    });
+});
+</script>

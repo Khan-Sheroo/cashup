@@ -1,0 +1,72 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Testing Tools - CashUp{% endblock %}
+
+{% block inv_css %}
+<style>
+    .reset-option { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem 0; border-bottom: 1px solid #ddd; }
+    .reset-option:last-of-type { border-bottom: none; }
+    .reset-option input[type="checkbox"] { margin-top: 0.3rem; }
+    .reset-option .desc { font-size: 0.85rem; color: #555; }
+    .danger-box { border: 2px solid #a61b1b; padding: 1rem; max-width: 46rem; }
+    .confirm-input { border: 1px solid #333; border-radius: 0; padding: 0.3rem 0.5rem; width: 10rem; text-transform: uppercase; }
+</style>
+{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>Testing Tools</h1>
+    <div class="sheet-meta">
+        <small>Clear uploaded data so you can re-upload and test matching and auto-categorisation.</small>
+    </div>
+
+    <form method="POST" class="danger-box">
+        <h2 style="margin-top:0;">Clear Data</h2>
+
+        <label class="reset-option">
+            <input type="checkbox" name="clear_sales" checked>
+            <span>
+                <strong>Sales mix uploads</strong> ({{ counts.sales }})<br>
+                <span class="desc">Deletes every sales mix, the stock it used, the remembered POS mappings ({{ counts.pos_aliases }}),
+                and empty recipes that were created from the sales mix.</span>
+            </span>
+        </label>
+
+        <label class="reset-option">
+            <input type="checkbox" name="clear_invoices" checked>
+            <span>
+                <strong>Invoices</strong> ({{ counts.invoices }})<br>
+                <span class="desc">Deletes every invoice, the stock it received, the uploaded files, and the remembered
+                supplier line mappings ({{ counts.supplier_aliases }}).</span>
+            </span>
+        </label>
+
+        <label class="reset-option">
+            <input type="checkbox" name="clear_items" checked>
+            <span>
+                <strong>Items those uploads created</strong><br>
+                <span class="desc">Removes items that were added automatically by the cleared uploads, so they are created
+                (and auto-categorised) again on the next upload. Items used in a recipe, requisition or stock take are kept.</span>
+            </span>
+        </label>
+
+        <label class="reset-option">
+            <input type="checkbox" name="clear_categories">
+            <span>
+                <strong>All item categories</strong> ({{ counts.categorised }} categorised)<br>
+                <span class="desc">Sets every item to Uncategorised. Then use <em>Auto-categorise</em> on the Items page to
+                test the rules against your whole list.</span>
+            </span>
+        </label>
+
+        <p class="mt-3 mb-2 small">A backup copy of the database is saved to <code>instance/backups</code> before anything is cleared.
+        Requisitions, stock takes, manual stock entries and recipes are not touched.</p>
+
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <label for="confirm_text" class="small fw-bold">Type CLEAR to confirm</label>
+            <input type="text" id="confirm_text" name="confirm_text" class="confirm-input" autocomplete="off">
+            <button type="submit" class="btn btn-danger">Clear Selected</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

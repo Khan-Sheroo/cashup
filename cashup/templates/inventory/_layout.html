@@ -175,6 +175,7 @@
     <a href="{{ url_for('inventory.stocktakes') }}" class="{{ 'active' if 'stocktake' in ep or ep == 'inventory.variance' }}">Stock Takes</a>
     <a href="{{ url_for('recipes.list_items') }}">Items</a>
     <a href="{{ url_for('recipes.list_recipes') }}">Recipes</a>
+    <a href="{{ url_for('inventory.testing_tools') }}" class="{{ 'active' if ep == 'inventory.testing_tools' }}">Testing</a>
 </div>
 {% block inv_content %}{% endblock %}
 {% endblock %}

@@ -94,6 +94,15 @@
         </div>
     </div>
 
+    <form method="POST" action="{{ url_for('recipes.import_workbook_route') }}" enctype="multipart/form-data"
+          class="d-flex flex-wrap gap-2 align-items-center mb-2" style="border:1px dashed #333;padding:0.6rem;"
+          onsubmit="return confirm('Import items and recipes from this workbook? Recipes with the same name are replaced with the workbook version. A database backup is saved first.');">
+        <strong class="small text-uppercase">Import Costing Workbook</strong>
+        <input type="file" name="file" accept=".xlsx,.xlsm" required class="form-control form-control-sm" style="max-width:22rem;border-radius:0;">
+        <button type="submit" class="btn btn-outline-dark btn-sm">Import</button>
+        <span class="small text-muted">Your "Recipe Costing" .xlsm (Item Master + one sheet per recipe).</span>
+    </form>
+
     <h2>Recipes</h2>
     <div class="table-responsive">
         <table class="sheet-table">

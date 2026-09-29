@@ -72,6 +72,16 @@ def _ensure_schema(app):
                             f"DEFAULT 'unit' NOT NULL"
                         ))
 
+        for table in ('sales_line', 'pos_item_alias'):
+            if table in tables:
+                columns = {c['name'] for c in inspector.get_columns(table)}
+                if 'item_id' not in columns:
+                    with db.engine.begin() as conn:
+                        conn.execute(text(
+                            f'ALTER TABLE {table} ADD COLUMN item_id INTEGER '
+                            f'REFERENCES cost_item(id)'
+                        ))
+
         from cashup.models import DEFAULT_LOCATIONS, Location
         if Location.query.count() == 0:
             for order, (name, kind) in enumerate(DEFAULT_LOCATIONS):
@@ -87,6 +97,7 @@ def create_app(config_name='development'):
     app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cashup.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
     upload_root = Path(app.root_path).parent / 'uploads'
     app.config['UPLOAD_FOLDER'] = str(upload_root)
     app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32 MB total per request

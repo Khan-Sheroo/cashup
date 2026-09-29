@@ -50,6 +50,14 @@
     }
     .sheet-table .col-center { text-align: center; }
     .sheet-table .col-right { text-align: right; }
+    .sheet-table tr.cat-row td {
+        background: #e9e9e9;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.04em;
+    }
+    .sheet-table tr.cat-row .cat-count { font-weight: 400; text-transform: none; color: #555; }
     .sheet-actions {
         display: flex;
         flex-wrap: wrap;
@@ -78,6 +86,9 @@
     }
     .status-active { font-weight: 600; }
     .status-inactive { color: #666; }
+    .cat-filter { border: 1px solid #333; border-radius: 0; padding: 0.2rem 0.4rem; }
+    .cat-manage td form { display: flex; gap: 0.35rem; margin: 0; }
+    .cat-manage input { border: 1px solid #333; border-radius: 0; padding: 0.15rem 0.4rem; flex: 1; }
 </style>
 {% endblock %}
 
@@ -85,34 +96,65 @@
 <div class="work-sheet">
     <h1>Cost Items</h1>
     <div class="sheet-meta">
-        <small>{{ items|length }} item{{ '' if items|length == 1 else 's' }} — used as ingredients in recipes</small>
+        <form method="GET" class="d-flex align-items-center gap-2 mb-0">
+            <small>{{ items|length }} item{{ '' if items|length == 1 else 's' }} shown</small>
+            <select name="category" class="cat-filter" onchange="this.form.submit()">
+                <option value="">All categories</option>
+                {% for cat, n in category_counts %}
+                <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }} ({{ n }})</option>
+                {% endfor %}
+                {% if uncategorised_count %}
+                <option value="__none__" {% if selected_category == '__none__' %}selected{% endif %}>Uncategorised ({{ uncategorised_count }})</option>
+                {% endif %}
+            </select>
+        </form>
         <div class="d-flex gap-2 flex-wrap">
+            <form method="POST" action="{{ url_for('recipes.auto_categorize_items') }}" class="mb-0"
+                  onsubmit="return confirm('Fill in categories for Uncategorised and From Sales Mix items based on their names? Items you have already categorised are not changed.');">
+                <button type="submit" class="btn btn-outline-dark btn-sm">Auto-categorise</button>
+            </form>
+            <a href="{{ url_for('inventory.stock') }}" class="btn btn-outline-dark btn-sm">Live Stock</a>
             <a href="{{ url_for('recipes.list_recipes') }}" class="btn btn-outline-dark btn-sm">Recipes</a>
             <a href="{{ url_for('recipes.add_item') }}" class="btn btn-dark btn-sm">Add Item</a>
         </div>
     </div>
 
     <h2>Item Master</h2>
+    {% include "recipes/_category_bar.html" %}
     <div class="table-responsive">
         <table class="sheet-table">
             <thead>
                 <tr>
+                    <th style="width: 3%;"></th>
                     <th>Name</th>
-                    <th style="width: 12%;">Category</th>
                     <th style="width: 10%;">Count Unit</th>
                     <th style="width: 14%;">Pack</th>
-                    <th style="width: 14%;">Pack Cost</th>
-                    <th style="width: 14%;">Cost / Unit</th>
-                    <th style="width: 10%;">Status</th>
-                    <th style="width: 22%;">Actions</th>
+                    <th style="width: 12%;">Pack Cost</th>
+                    <th style="width: 12%;">Cost / Unit</th>
+                    <th style="width: 9%;">Status</th>
+                    <th style="width: 20%;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% if items %}
+                    {% set ns = namespace(cat=None) %}
                     {% for item in items %}
+                    {% if loop.first or item.category != ns.cat %}
+                        {% set ns.cat = item.category %}
+                        {% set group = items|selectattr('category', 'equalto', item.category)|list %}
+                        <tr class="cat-row">
+                            <td colspan="8">
+                                <input type="checkbox" class="cat-all" data-cat="{{ item.category or '' }}" title="Select all in category">
+                                <span class="cat-name">{{ item.category or 'Uncategorised' }}</span>
+                                <span class="cat-count">— {{ group|length }} item{{ '' if group|length == 1 else 's' }}</span>
+                            </td>
+                        </tr>
+                    {% endif %}
                     <tr>
+                        <td class="col-center">
+                            <input type="checkbox" class="cat-item" name="item_ids" value="{{ item.id }}" form="cat-form" data-cat="{{ item.category or '' }}">
+                        </td>
                         <td>{{ item.name }}</td>
-                        <td>{{ item.category or '' }}</td>
                         <td class="col-center">{{ item.count_unit_label() }}</td>
                         <td class="col-center">{{ item.pack_size|float }} {{ item.unit }}</td>
                         <td class="col-right">{{ item.cost_price|money }}</td>
@@ -149,6 +191,29 @@
             </tbody>
         </table>
     </div>
+
+    {% if category_counts %}
+    <h2>Categories</h2>
+    <table class="sheet-table cat-manage" style="max-width: 40rem;">
+        <thead><tr><th>Category</th><th style="width: 12%;">Items</th><th style="width: 50%;">Rename / Merge</th></tr></thead>
+        <tbody>
+            {% for cat, n in category_counts %}
+            <tr>
+                <td><a href="{{ url_for('recipes.list_items', category=cat) }}">{{ cat }}</a></td>
+                <td class="col-center">{{ n }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('recipes.rename_category') }}">
+                        <input type="hidden" name="old" value="{{ cat }}">
+                        <input type="text" name="new" list="cat-suggestions" placeholder="New name or existing category" required>
+                        <button class="btn btn-sm btn-outline-dark" style="padding:0.1rem 0.5rem;">Rename</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="small text-muted mt-1">Renaming to an existing category merges the two.</p>
+    {% endif %}
 
     <div class="sheet-actions">
         <a href="{{ url_for('recipes.add_item') }}" class="btn btn-dark">Add Item</a>
