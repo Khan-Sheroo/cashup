@@ -123,6 +123,7 @@
                     <tr>
                         <td>
                             <a href="{{ url_for('recipes.edit_recipe', recipe_id=row.recipe.id) }}">{{ row.recipe.name }}</a>
+                            {% if row.recipe.is_batch %}<span class="small text-muted" title="Manufactured in batches — cost shown per portion">· batch of {{ row.recipe.portions_per_batch()|qty if row.recipe.portions_per_batch() else '?' }}</span>{% endif %}
                         </td>
                         <td class="col-right">{{ row.cost|money }}</td>
                         <td class="col-right">

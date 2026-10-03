@@ -19,6 +19,7 @@
                 <th>Req In</th>
                 <th>Req Out</th>
                 <th>Adjust / Waste</th>
+                <th>Production</th>
                 <th>Sales Usage</th>
                 <th>Expected</th>
                 <th>Counted</th>
@@ -32,7 +33,7 @@
             {% for r in summary.rows %}
                 {% if loop.first or r.item.category != ns.cat %}
                     {% set ns.cat = r.item.category %}
-                    <tr class="cat-row"><td colspan="13">{{ r.item.category or 'Uncategorised' }}</td></tr>
+                    <tr class="cat-row"><td colspan="14">{{ r.item.category or 'Uncategorised' }}</td></tr>
                 {% endif %}
                 {% set f = r.factor %}
                 <tr class="{{ 'over' if r.variance is not none and r.variance > 0 }} {{ 'under' if r.variance is not none and r.variance < 0 }}">
@@ -43,6 +44,7 @@
                     <td class="col-right">{{ (r.transfers_in / f)|qty if r.transfers_in else '' }}</td>
                     <td class="col-right">{{ (r.transfers_out / f)|qty if r.transfers_out else '' }}</td>
                     <td class="col-right">{{ (r.adjustments / f)|qty if r.adjustments else '' }}</td>
+                    <td class="col-right">{% if r.production %}{{ '+' if r.production > 0 }}{{ (r.production / f)|qty }}{% endif %}</td>
                     <td class="col-right">{{ (r.sales / f)|qty if r.sales else '' }}</td>
                     <td class="col-right fw-bold">{{ (r.expected / f)|qty }}</td>
                     <td class="col-right fw-bold">{{ (r.counted / f)|qty if r.counted is not none else '—' }}</td>
@@ -55,7 +57,7 @@
                     </td>
                 </tr>
             {% else %}
-                <tr><td colspan="13" class="text-center muted">Nothing to compare yet — enter counts or post stock movements for this location.</td></tr>
+                <tr><td colspan="14" class="text-center muted">Nothing to compare yet — enter counts or post stock movements for this location.</td></tr>
             {% endfor %}
         </tbody>
     </table>

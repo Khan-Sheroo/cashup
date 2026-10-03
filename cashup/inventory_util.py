@@ -45,9 +45,16 @@ def last_movement_dates(location_id: int | None = None) -> dict[int, date]:
 
 
 def explode_recipe(recipe, sold_qty) -> dict[int, Decimal]:
-    """Ingredient usage (recipe units) for sold_qty portions of a recipe."""
+    """Ingredient usage (recipe units) for sold_qty portions of a recipe.
+
+    Manufactured recipes were already costed out of stock at production, so a sale pulls
+    portions of the made item instead of the raw ingredients.
+    """
     usage: dict[int, Decimal] = defaultdict(lambda: ZERO)
     qty = _dec(sold_qty)
+    if getattr(recipe, 'is_manufactured', False):
+        usage[recipe.output_item_id] += recipe.portion_item_units() * qty
+        return dict(usage)
     for line in recipe.lines:
         usage[line.item_id] += _dec(line.quantity) * qty
     return dict(usage)
@@ -113,6 +120,7 @@ def period_summary(stock_take: StockTake) -> dict:
         adjustments = (kinds.get('manual', ZERO) + kinds.get('waste', ZERO)
                        + kinds.get('stocktake_adjust', ZERO))
         sales = kinds.get('sale', ZERO)
+        production = kinds.get('production_in', ZERO) + kinds.get('production_use', ZERO)
         expected = open_qty + sum(kinds.values(), ZERO)
 
         line = counted.get(item_id)
@@ -136,6 +144,7 @@ def period_summary(stock_take: StockTake) -> dict:
             'transfers_out': transfers_out,
             'adjustments': adjustments,
             'sales': sales,
+            'production': production,
             'expected': expected,
             'counted': counted_base,
             'variance': variance,

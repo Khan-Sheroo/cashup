@@ -171,6 +171,7 @@
     <a href="{{ url_for('inventory.stock') }}" class="{{ 'active' if ep in ('inventory.stock', 'inventory.adjust', 'inventory.item_movements') }}">Stock</a>
     <a href="{{ url_for('inventory.invoices') }}" class="{{ 'active' if 'invoice' in ep }}">Invoices</a>
     <a href="{{ url_for('inventory.requisitions') }}" class="{{ 'active' if 'requisition' in ep }}">Requisitions</a>
+    <a href="{{ url_for('inventory.production') }}" class="{{ 'active' if 'production' in ep }}">Production</a>
     <a href="{{ url_for('inventory.sales') }}" class="{{ 'active' if 'sales' in ep }}">Sales Mix</a>
     <a href="{{ url_for('inventory.stocktakes') }}" class="{{ 'active' if 'stocktake' in ep or ep == 'inventory.variance' }}">Stock Takes</a>
     <a href="{{ url_for('recipes.list_items') }}">Items</a>

@@ -24,10 +24,11 @@ from cashup.category_rules import guess_category
 from cashup.recipe_routes import _matching_category, category_suggestions
 from cashup.recipe_util import INVOICE_QTY_UNIT_VALUES, INVOICE_QTY_UNITS, unit_conversion
 from cashup.models import (
-    MOVEMENT_KINDS, CostItem, Invoice, InvoiceLine, Location, PosItemAlias, Recipe, RecipeLine,
-    Requisition, RequisitionLine, SalesImport, SalesLine, StockMovement, StockTake,
-    StockTakeLine, Supplier, SupplierItemAlias,
+    MOVEMENT_KINDS, CostItem, Invoice, InvoiceLine, Location, PosItemAlias, ProductionLine,
+    ProductionRun, Recipe, RecipeLine, Requisition, RequisitionLine, SalesImport, SalesLine,
+    StockMovement, StockTake, StockTakeLine, Supplier, SupplierItemAlias,
 )
+from cashup.production import batch_usage, delete_production, post_production
 
 inventory_bp = Blueprint('inventory', __name__, url_prefix='/inventory')
 
@@ -1186,6 +1187,90 @@ def delete_stocktake(take_id):
     db.session.commit()
     flash('Stock take deleted', 'success')
     return redirect(url_for('inventory.stocktakes'))
+
+
+# ---------------------------------------------------------------------------
+# Production (manufactured batch recipes)
+# ---------------------------------------------------------------------------
+
+def _batch_recipes():
+    recipes = Recipe.query.filter(Recipe.is_batch.is_(True), Recipe.yield_qty.isnot(None)).all()
+    return sorted(recipes, key=lambda r: r.name.lower())
+
+
+@inventory_bp.route('/production')
+def production():
+    runs = ProductionRun.query.order_by(ProductionRun.run_date.desc(), ProductionRun.id.desc()).all()
+    return render_template('inventory/production.html', runs=runs, batch_recipes=_batch_recipes())
+
+
+@inventory_bp.route('/production/new', methods=['GET', 'POST'])
+def new_production():
+    recipes = _batch_recipes()
+    locations = Location.ordered()
+    kitchen = next((l for l in locations if l.name.lower() == 'kitchen'), locations[0] if locations else None)
+    if request.method == 'POST':
+        location = Location.query.get(_parse_int(request.form.get('location_id')))
+        run_date = _parse_date(request.form.get('run_date'), date.today())
+        if location is None:
+            flash('Choose the location where the batches were made', 'error')
+            return redirect(url_for('inventory.new_production'))
+        run = ProductionRun(run_date=run_date, location_id=location.id,
+                            note=(request.form.get('note') or '').strip()[:255] or None)
+        for recipe in recipes:
+            batches = to_dec(request.form.get(f'batches_{recipe.id}'))
+            if batches is not None and batches > 0:
+                run.lines.append(ProductionLine(recipe_id=recipe.id, batches=batches, output_qty=ZERO))
+        if not run.lines:
+            flash('Enter how many batches were made for at least one recipe', 'error')
+            return redirect(url_for('inventory.new_production'))
+        db.session.add(run)
+        db.session.flush()
+        post_production(run)
+        db.session.commit()
+        short = _production_shortages(run)
+        if short:
+            flash('Stock went below zero at ' + location.name + ' for: ' + ', '.join(short[:12])
+                  + ('…' if len(short) > 12 else '') + '. Check that invoices/requisitions for these are entered.',
+                  'warning')
+        flash(f'Production posted: ingredients taken out of stock and {len(run.lines)} made item(s) added',
+              'success')
+        return redirect(url_for('inventory.view_production', run_id=run.id))
+
+    preselect = _parse_int(request.args.get('recipe'))
+    on_hand = on_hand_map(kitchen.id) if kitchen else {}
+    return render_template('inventory/production_form.html', recipes=recipes, locations=locations,
+                           default_location=kitchen, today=date.today(), preselect=preselect,
+                           on_hand=on_hand)
+
+
+def _production_shortages(run) -> list[str]:
+    stock = on_hand_map(run.location_id)
+    names = []
+    for line in run.lines:
+        for item_id in batch_usage(line.recipe, line.batches):
+            if stock.get(item_id, ZERO) < 0:
+                item = CostItem.query.get(item_id)
+                if item and item.name not in names:
+                    names.append(item.name)
+    return names
+
+
+@inventory_bp.route('/production/<int:run_id>')
+def view_production(run_id):
+    run = ProductionRun.query.get_or_404(run_id)
+    movements = (StockMovement.query.filter_by(production_run_id=run.id)
+                 .order_by(StockMovement.kind.desc(), StockMovement.id).all())
+    return render_template('inventory/production_view.html', run=run, movements=movements)
+
+
+@inventory_bp.route('/production/<int:run_id>/delete', methods=['POST'])
+def delete_production_run(run_id):
+    run = ProductionRun.query.get_or_404(run_id)
+    delete_production(run)
+    db.session.commit()
+    flash('Production sheet deleted — ingredients returned to stock and made items removed', 'success')
+    return redirect(url_for('inventory.production'))
 
 
 # ---------------------------------------------------------------------------

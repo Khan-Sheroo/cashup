@@ -185,6 +185,52 @@
                    placeholder="Optional">
         </div>
 
+        {% set batch = recipe and recipe.is_batch %}
+        <h2>Manufacturing</h2>
+        <label class="d-flex gap-2 align-items-start mb-2">
+            <input type="checkbox" name="is_batch" id="is-batch" {% if batch %}checked{% endif %} style="margin-top:0.3rem;">
+            <span><strong>Manufactured in batches</strong> — made ahead (e.g. a ganache, sauce or dough), then sold or used in portions.
+                <span class="small text-muted d-block">Ingredients below are for the <strong>whole batch</strong>. Making a batch on the Production sheet takes the ingredients out of stock
+                and adds the made item; each sale then pulls one portion of the made item.</span></span>
+        </label>
+        <div id="batch-fields" {% if not batch %}style="display:none;"{% endif %}>
+            <div class="field-row">
+                <div class="settings-field">
+                    <div class="label">Batch Yield</div>
+                    <div class="d-flex gap-1">
+                        <input type="number" name="yield_qty" id="yield-qty" step="any" min="0" class="numeric-input"
+                               value="{{ recipe.yield_qty|qty if recipe and recipe.yield_qty else '' }}" placeholder="e.g. 5">
+                        <select name="yield_unit" id="yield-unit" style="max-width:11rem;">
+                            {% for value, label in batch_yield_units %}
+                            <option value="{{ value }}" {% if (recipe.yield_unit if recipe and recipe.yield_unit else 'portion') == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-field">
+                    <div class="label">Portion Size (<span class="yield-unit-label">portions</span> per sale)</div>
+                    <input type="number" name="portion_qty" id="portion-qty" step="any" min="0" class="numeric-input"
+                           value="{{ recipe.portion_qty|qty if recipe and recipe.portion_qty else '1' }}">
+                </div>
+                <div class="settings-field">
+                    <div class="label">Portions per Batch</div>
+                    <div class="fw-bold" id="portions-per-batch">—</div>
+                </div>
+            </div>
+            {% if not batch and recipe and recipe.lines %}
+            <label class="d-flex gap-2 align-items-start mb-2 small">
+                <input type="checkbox" name="scale_to_batch" style="margin-top:0.2rem;">
+                <span>The quantities below are currently for <strong>one portion</strong> — multiply them up to a full batch (× portions per batch) when saving.</span>
+            </label>
+            {% endif %}
+            {% if recipe and recipe.output_item %}
+            <p class="small mb-2">Made item in stock: <strong>{{ recipe.output_item.name }}</strong>
+                ({{ recipe.output_item.category or 'Uncategorised' }}) ·
+                <a href="{{ url_for('inventory.item_movements', item_id=recipe.output_item.id) }}">stock history</a> ·
+                <a href="{{ url_for('inventory.new_production', recipe=recipe.id) }}">make a batch</a></p>
+            {% endif %}
+        </div>
+
         <h2>Ingredients</h2>
         {% if not items %}
         <p class="empty-hint">Add cost items first so they appear in the ingredient list.</p>
@@ -239,8 +285,12 @@
         <h2>Costing</h2>
         <div class="totals-box">
             <div>
-                <div class="t-label">Recipe Cost</div>
+                <div class="t-label" id="total-cost-label">Recipe Cost</div>
                 <div class="t-value" id="total-cost">{{ currency_symbol }}0.00</div>
+            </div>
+            <div id="portion-cost-box" style="display:none;">
+                <div class="t-label">Cost per Portion</div>
+                <div class="t-value" id="portion-cost">—</div>
             </div>
             <div>
                 <div class="t-label">Net Sale</div>
@@ -308,6 +358,15 @@
     const template = document.getElementById('line-template');
     const addBtn = document.getElementById('add-line');
     const saleInput = document.getElementById('sale-price');
+    const batchBox = document.getElementById('is-batch');
+    batchBox.addEventListener('change', function () {
+        document.getElementById('batch-fields').style.display = batchBox.checked ? '' : 'none';
+        recalc();
+    });
+    ['yield-qty', 'portion-qty', 'yield-unit'].forEach(function (id) {
+        document.getElementById(id).addEventListener('input', function () { recalc(); });
+        document.getElementById(id).addEventListener('change', function () { recalc(); });
+    });
 
     const VAT_RATE = 0.15;
     const SERVICE_RATE = 0.10;
@@ -344,6 +403,22 @@
             total += parseFloat(row.querySelector('.line-cost').dataset.amount || '0') || 0;
         });
         document.getElementById('total-cost').textContent = money(total);
+
+        const isBatch = batchBox.checked;
+        const yieldQty = parseFloat(document.getElementById('yield-qty').value || '0') || 0;
+        const portionQty = parseFloat(document.getElementById('portion-qty').value || '1') || 1;
+        const portions = yieldQty > 0 ? yieldQty / portionQty : 0;
+        document.getElementById('portions-per-batch').textContent = portions ? (Math.round(portions * 100) / 100) : '—';
+        document.getElementById('total-cost-label').textContent = isBatch ? 'Batch Cost' : 'Recipe Cost';
+        document.getElementById('portion-cost-box').style.display = isBatch ? '' : 'none';
+        if (isBatch) {
+            document.getElementById('portion-cost').textContent = portions ? money(total / portions) : '—';
+            if (portions) total = total / portions;
+        }
+        const unitSel = document.getElementById('yield-unit');
+        document.querySelectorAll('.yield-unit-label').forEach(function (el) {
+            el.textContent = unitSel.value === 'portion' ? 'portions' : unitSel.value;
+        });
 
         const sale = parseFloat(saleInput.value || '');
         const netEl = document.getElementById('net-sale');

@@ -1,0 +1,80 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}New Production Sheet - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>New Production Sheet</h1>
+    <div class="sheet-meta">
+        <small>Enter the number of batches made (decimals allowed, e.g. 0.5 for a half batch). Saving posts it to stock straight away.</small>
+    </div>
+
+    <form method="POST">
+        <div class="field-grid">
+            <div class="settings-field">
+                <div class="label">Date Made</div>
+                <input type="date" name="run_date" value="{{ today.isoformat() }}">
+            </div>
+            <div class="settings-field">
+                <div class="label">Made At (location)</div>
+                <select name="location_id">
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}" {% if default_location and loc.id == default_location.id %}selected{% endif %}>{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="settings-field">
+                <div class="label">Note</div>
+                <input type="text" name="note" placeholder="Optional, e.g. prep for weekend">
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="sheet-table">
+                <thead>
+                    <tr><th>Recipe</th><th style="width:14%">One Batch Makes</th><th style="width:12%">Batch Cost</th><th style="width:14%">Batches Made</th><th style="width:18%">Output</th></tr>
+                </thead>
+                <tbody>
+                    {% for r in recipes %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('recipes.edit_recipe', recipe_id=r.id) }}" target="_blank">{{ r.name }}</a>
+                            <details class="small muted">
+                                <summary>ingredients per batch</summary>
+                                {% for line in r.lines %}
+                                {% set have = on_hand.get(line.item_id, 0) %}
+                                <div>{{ line.item.name }}: {{ line.quantity|qty }} {{ line.item.unit }}
+                                    <span class="{{ 'txt-under' if have < line.quantity }}">(Kitchen has {{ have|qty }})</span></div>
+                                {% endfor %}
+                            </details>
+                        </td>
+                        <td class="col-center">{{ r.yield_qty|qty }} {{ r.yield_unit }}</td>
+                        <td class="col-right">{{ r.total_cost()|money }}</td>
+                        <td><input type="number" step="any" min="0" name="batches_{{ r.id }}" class="numeric-input batches"
+                                   data-yield="{{ r.yield_qty }}" data-unit="{{ r.yield_unit }}"
+                                   value="{{ '1' if preselect == r.id else '' }}"></td>
+                        <td class="col-center output">—</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="sheet-actions">
+            <button type="submit" class="btn btn-dark" onclick="return confirm('Post this production? Ingredients will be taken out of stock now.');">Save &amp; Post to Stock</button>
+            <a href="{{ url_for('inventory.production') }}" class="btn btn-outline-dark">Cancel</a>
+        </div>
+    </form>
+</div>
+<script>
+document.querySelectorAll('input.batches').forEach(function (input) {
+    function show() {
+        const n = parseFloat(input.value || '0') || 0;
+        const cell = input.closest('tr').querySelector('.output');
+        cell.textContent = n > 0 ? (Math.round(n * parseFloat(input.dataset.yield) * 100) / 100) + ' ' + input.dataset.unit : '—';
+    }
+    input.addEventListener('input', show);
+    show();
+});
+</script>
+{% endblock %}

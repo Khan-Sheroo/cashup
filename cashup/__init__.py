@@ -61,6 +61,26 @@ def _ensure_schema(app):
                         'ALTER TABLE recipe ADD COLUMN location_id INTEGER '
                         'REFERENCES location(id)'
                     ))
+            batch_columns = {
+                'is_batch': 'BOOLEAN DEFAULT 0 NOT NULL',
+                'yield_qty': 'NUMERIC(12, 4)',
+                'yield_unit': 'VARCHAR(20)',
+                'portion_qty': 'NUMERIC(12, 4)',
+                'output_item_id': 'INTEGER REFERENCES cost_item(id)',
+            }
+            for name, col_type in batch_columns.items():
+                if name not in columns:
+                    with db.engine.begin() as conn:
+                        conn.execute(text(f'ALTER TABLE recipe ADD COLUMN {name} {col_type}'))
+
+        if 'stock_movement' in tables:
+            columns = {c['name'] for c in inspector.get_columns('stock_movement')}
+            if 'production_run_id' not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text(
+                        'ALTER TABLE stock_movement ADD COLUMN production_run_id INTEGER '
+                        'REFERENCES production_run(id)'
+                    ))
 
         for table in ('invoice_line', 'supplier_item_alias'):
             if table in tables:

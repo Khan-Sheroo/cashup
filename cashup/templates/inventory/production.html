@@ -1,0 +1,69 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Production - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet">
+    <h1>Production</h1>
+    <div class="sheet-meta">
+        <small>Record batches you make (ganache, sauces, doughs). Posting takes the ingredients out of stock and adds the made item; sales then pull portions of the made item.</small>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('inventory.new_production') }}" class="btn btn-dark btn-sm {{ 'disabled' if not batch_recipes }}">New Production Sheet</a>
+        </div>
+    </div>
+
+    {% if not batch_recipes %}
+    <div class="alert alert-info" style="border-radius:0;">
+        No manufactured recipes yet. Open a recipe (e.g. Mango Ganache), tick <strong>Manufactured in batches</strong> and set its yield — it will then appear here.
+    </div>
+    {% else %}
+    <h2>Manufactured Recipes</h2>
+    <div class="table-responsive mb-3">
+        <table class="sheet-table">
+            <thead><tr><th>Recipe</th><th>Batch Yield</th><th>Portion</th><th>Batch Cost</th><th>Cost / Portion</th><th>Made Item</th><th></th></tr></thead>
+            <tbody>
+                {% for r in batch_recipes %}
+                <tr>
+                    <td><a href="{{ url_for('recipes.edit_recipe', recipe_id=r.id) }}">{{ r.name }}</a></td>
+                    <td class="col-center">{{ r.yield_qty|qty }} {{ r.yield_unit }}</td>
+                    <td class="col-center">{{ r.portion_qty|qty if r.portion_qty else 1 }} {{ r.yield_unit }}</td>
+                    <td class="col-right">{{ r.total_cost()|money }}</td>
+                    <td class="col-right">{{ r.serving_cost()|money }}</td>
+                    <td>{% if r.output_item %}<a href="{{ url_for('inventory.item_movements', item_id=r.output_item.id) }}">{{ r.output_item.name }}</a>{% endif %}</td>
+                    <td class="col-center"><a href="{{ url_for('inventory.new_production', recipe=r.id) }}" class="btn btn-sm btn-outline-dark" style="padding:0.1rem 0.45rem;font-size:0.8rem;">Make</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <h2>Production Sheets</h2>
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead><tr><th>Date</th><th>Location</th><th>Made</th><th>Ingredient Cost</th><th>Note</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for run in runs %}
+                <tr>
+                    <td class="col-center">{{ run.run_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ run.location.name }}</td>
+                    <td>{% for l in run.lines %}{{ l.recipe.name }} × {{ l.batches|qty }}{{ ', ' if not loop.last }}{% endfor %}</td>
+                    <td class="col-right">{{ run.total_cost()|money }}</td>
+                    <td>{{ run.note or '' }}</td>
+                    <td class="col-center">
+                        <div class="btn-row justify-content-center">
+                            <a href="{{ url_for('inventory.view_production', run_id=run.id) }}" class="btn btn-sm btn-outline-dark">View</a>
+                            <form method="POST" action="{{ url_for('inventory.delete_production_run', run_id=run.id) }}" onsubmit="return confirm('Delete this production sheet? Ingredients go back into stock and the made items are removed.');">
+                                <button class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center muted">No production recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

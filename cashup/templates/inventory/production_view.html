@@ -1,0 +1,50 @@
+{% extends "inventory/_layout.html" %}
+
+{% block title %}Production {{ run.run_date.strftime('%d/%m/%Y') }} - CashUp{% endblock %}
+
+{% block inv_content %}
+<div class="work-sheet" style="max-width: 64rem;">
+    <h1>Production — {{ run.run_date.strftime('%d/%m/%Y') }}</h1>
+    <div class="sheet-meta">
+        <small>{{ run.location.name }}{% if run.note %} · {{ run.note }}{% endif %} · posted to stock</small>
+    </div>
+
+    <h2>Made</h2>
+    <table class="sheet-table mb-3">
+        <thead><tr><th>Recipe</th><th>Batches</th><th>Output</th><th>Ingredient Cost</th></tr></thead>
+        <tbody>
+            {% for l in run.lines %}
+            <tr>
+                <td>{{ l.recipe.name }}</td>
+                <td class="col-center">{{ l.batches|qty }}</td>
+                <td class="col-center">{{ l.output_qty|qty }} {{ l.recipe.output_item.unit if l.recipe.output_item else '' }}</td>
+                <td class="col-right">{{ ((l.batch_cost or 0) * l.batches)|money }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Stock Movements</h2>
+    <table class="sheet-table">
+        <thead><tr><th>Item</th><th>Movement</th><th>Quantity</th><th>Note</th></tr></thead>
+        <tbody>
+            {% for m in movements %}
+            <tr>
+                <td>{{ m.item.name }}</td>
+                <td class="col-center">{{ m.kind_label }}</td>
+                <td class="col-right {{ 'txt-under' if m.quantity < 0 else 'txt-over' }}">{{ m.quantity|qty }} {{ m.item.unit }}</td>
+                <td class="muted">{{ m.note or '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="sheet-actions">
+        <a href="{{ url_for('inventory.production') }}" class="btn btn-outline-dark">Back</a>
+        <form method="POST" action="{{ url_for('inventory.delete_production_run', run_id=run.id) }}" class="ms-auto"
+              onsubmit="return confirm('Delete this production sheet? Ingredients go back into stock and the made items are removed.');">
+            <button class="btn btn-outline-danger">Delete</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

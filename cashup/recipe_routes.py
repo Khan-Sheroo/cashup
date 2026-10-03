@@ -2,7 +2,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from cashup import db
 from cashup.category_rules import guess_category
-from cashup.models import CostItem, InvoiceLine, Location, Recipe, RecipeLine, SalesLine
+from decimal import Decimal
+
+from cashup.models import BATCH_YIELD_UNITS, CostItem, InvoiceLine, Location, Recipe, RecipeLine, SalesLine
+from cashup.production import YIELD_UNIT_VALUES, sync_output_item
 from cashup.recipe_util import COMMON_UNITS, DEFAULT_CATEGORIES, is_valid_unit, to_decimal
 
 recipes_bp = Blueprint('recipes', __name__, url_prefix='/recipes')
@@ -48,7 +51,7 @@ def _recipe_list_rows():
     recipes = Recipe.query.order_by(Recipe.name).all()
     rows = []
     for recipe in recipes:
-        cost = recipe.total_cost()
+        cost = recipe.serving_cost()
         rows.append({
             'recipe': recipe,
             'cost': cost,
@@ -68,13 +71,48 @@ def _parse_location_id(raw):
 
 
 def _render_recipe_form(recipe, items):
+    if recipe is not None and recipe.output_item_id:
+        items = [i for i in items if i.id != recipe.output_item_id]
     return render_template(
         'recipes/edit.html',
         recipe=recipe,
         items=items,
         common_units=COMMON_UNITS,
         locations=Location.ordered(),
+        batch_yield_units=BATCH_YIELD_UNITS,
     )
+
+
+def _read_batch_form():
+    """(is_batch, yield_qty, yield_unit, portion_qty, error) from the recipe form."""
+    form = request.form
+    if form.get('is_batch') != 'on':
+        return False, None, None, None, None
+    yield_qty = to_decimal(form.get('yield_qty'), None)
+    yield_unit = form.get('yield_unit') or 'portion'
+    portion_qty = to_decimal(form.get('portion_qty'), None) or Decimal('1')
+    if yield_qty is None or yield_qty <= 0:
+        return True, None, None, None, 'Enter the batch yield (how much one batch makes)'
+    if yield_unit not in YIELD_UNIT_VALUES:
+        return True, None, None, None, 'Choose a valid yield unit'
+    if portion_qty <= 0 or portion_qty > yield_qty:
+        return True, None, None, None, 'Portion size must be more than zero and no bigger than the batch'
+    return True, yield_qty, yield_unit, portion_qty, None
+
+
+def _apply_batch_settings(recipe, batch_values, was_batch):
+    is_batch, yield_qty, yield_unit, portion_qty, _error = batch_values
+    recipe.is_batch = is_batch
+    if not is_batch:
+        return
+    recipe.yield_qty, recipe.yield_unit, recipe.portion_qty = yield_qty, yield_unit, portion_qty
+    if not was_batch and request.form.get('scale_to_batch') == 'on':
+        factor = yield_qty / portion_qty
+        for line in recipe.lines:
+            line.quantity = (Decimal(line.quantity) * factor).quantize(Decimal('0.0001'))
+    db.session.flush()
+    sync_output_item(recipe)
+    recipe.lines[:] = [l for l in recipe.lines if l.item_id != recipe.output_item_id]
 
 
 @recipes_bp.route('/')
@@ -141,6 +179,10 @@ def new_recipe():
         if Recipe.query.filter_by(name=name).first():
             flash(f'Recipe "{name}" already exists', 'error')
             return _render_recipe_form(None, items)
+        batch_values = _read_batch_form()
+        if batch_values[4]:
+            flash(batch_values[4], 'error')
+            return _render_recipe_form(None, items)
 
         recipe = Recipe(
             name=name, sale_price=sale, notes=notes,
@@ -153,6 +195,7 @@ def new_recipe():
             request.form.getlist('line_item_id'),
             request.form.getlist('line_quantity'),
         )
+        _apply_batch_settings(recipe, batch_values, was_batch=True)
         db.session.commit()
         flash(f'Recipe "{name}" created', 'success')
         return redirect(url_for('recipes.edit_recipe', recipe_id=recipe.id))
@@ -190,7 +233,12 @@ def edit_recipe(recipe_id):
         if duplicate:
             flash(f'Recipe "{name}" already exists', 'error')
             return _render_recipe_form(recipe, items)
+        batch_values = _read_batch_form()
+        if batch_values[4]:
+            flash(batch_values[4], 'error')
+            return _render_recipe_form(recipe, items)
 
+        was_batch = recipe.is_batch
         recipe.name = name
         recipe.sale_price = sale
         recipe.notes = notes
@@ -200,6 +248,7 @@ def edit_recipe(recipe_id):
             request.form.getlist('line_item_id'),
             request.form.getlist('line_quantity'),
         )
+        _apply_batch_settings(recipe, batch_values, was_batch)
         db.session.commit()
         flash(f'Recipe "{name}" saved', 'success')
         return redirect(url_for('recipes.edit_recipe', recipe_id=recipe.id))
@@ -211,6 +260,10 @@ def edit_recipe(recipe_id):
 def delete_recipe(recipe_id):
     recipe = Recipe.query.get_or_404(recipe_id)
     name = recipe.name
+    from cashup.models import ProductionLine
+    if ProductionLine.query.filter_by(recipe_id=recipe.id).first():
+        flash(f'"{name}" has production history — delete those production sheets first', 'error')
+        return redirect(url_for('recipes.edit_recipe', recipe_id=recipe.id))
     db.session.delete(recipe)
     db.session.commit()
     flash(f'Recipe "{name}" deleted', 'success')

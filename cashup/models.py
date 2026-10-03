@@ -353,6 +353,13 @@ class Recipe(db.Model):
     sale_price = db.Column(db.Numeric(12, 2), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=True)
+    # Manufactured (batch) recipe: lines are for one whole batch, which yields yield_qty yield_unit
+    # of output_item. A sale pulls portion_qty (in yield_unit) of output_item from stock.
+    is_batch = db.Column(db.Boolean, nullable=False, default=False)
+    yield_qty = db.Column(db.Numeric(12, 4), nullable=True)
+    yield_unit = db.Column(db.String(20), nullable=True)
+    portion_qty = db.Column(db.Numeric(12, 4), nullable=True)
+    output_item_id = db.Column(db.Integer, db.ForeignKey('cost_item.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -364,9 +371,43 @@ class Recipe(db.Model):
         order_by='RecipeLine.sort_order',
     )
     location = db.relationship('Location')
+    output_item = db.relationship('CostItem', foreign_keys=[output_item_id])
 
     def __repr__(self):
         return f'<Recipe {self.name}>'
+
+    @property
+    def is_manufactured(self) -> bool:
+        return bool(self.is_batch and self.output_item_id and self.yield_qty)
+
+    def yield_to_item_units(self) -> Decimal:
+        """Output item units (g / ml / each) made by one batch."""
+        from cashup.recipe_util import unit_conversion
+        qty = Decimal(self.yield_qty or 0)
+        if self.output_item is None:
+            return qty
+        factor = unit_conversion(self.yield_unit or 'each', self.output_item.unit)
+        return qty * (factor if factor is not None else Decimal('1'))
+
+    def portion_item_units(self) -> Decimal:
+        """Output item units pulled from stock per portion sold."""
+        from cashup.recipe_util import unit_conversion
+        qty = Decimal(self.portion_qty or 1)
+        if self.output_item is None:
+            return qty
+        factor = unit_conversion(self.yield_unit or 'each', self.output_item.unit)
+        return qty * (factor if factor is not None else Decimal('1'))
+
+    def portions_per_batch(self) -> Decimal | None:
+        if not self.yield_qty:
+            return None
+        return Decimal(self.yield_qty) / Decimal(self.portion_qty or 1)
+
+    def serving_cost(self) -> Decimal:
+        """Cost of what is sold: one portion for batch recipes, the whole recipe otherwise."""
+        total = self.total_cost()
+        portions = self.portions_per_batch() if self.is_batch else None
+        return total / portions if portions else total
 
     def total_cost(self) -> Decimal:
         line_data = [
@@ -383,13 +424,13 @@ class Recipe(db.Model):
         return net_sale_price(self.sale_price)
 
     def gross_profit_amount(self) -> Decimal | None:
-        return gross_profit(self.sale_price, self.total_cost())
+        return gross_profit(self.sale_price, self.serving_cost())
 
     def margin_percent(self) -> Decimal | None:
-        return gross_margin_percent(self.sale_price, self.total_cost())
+        return gross_margin_percent(self.sale_price, self.serving_cost())
 
     def to_dict(self):
-        cost = self.total_cost()
+        cost = self.serving_cost()
         net = self.net_sale()
         margin = self.margin_percent()
         profit = self.gross_profit_amount()
@@ -456,7 +497,18 @@ MOVEMENT_KINDS = {
     'waste': 'Waste',
     'sale': 'Sales Usage',
     'stocktake_adjust': 'Stock Take Adjustment',
+    'production_use': 'Used in Production',
+    'production_in': 'Produced',
 }
+
+BATCH_YIELD_UNITS = (
+    ('portion', 'Portions'),
+    ('each', 'Each / Pieces'),
+    ('g', 'Grams (g)'),
+    ('kg', 'Kilograms (kg)'),
+    ('ml', 'Millilitres (ml)'),
+    ('L', 'Litres (L)'),
+)
 
 
 class Location(db.Model):
@@ -497,6 +549,7 @@ class StockMovement(db.Model):
     requisition_id = db.Column(db.Integer, db.ForeignKey('requisition.id'), nullable=True)
     sales_import_id = db.Column(db.Integer, db.ForeignKey('sales_import.id'), nullable=True)
     stock_take_id = db.Column(db.Integer, db.ForeignKey('stock_take.id'), nullable=True)
+    production_run_id = db.Column(db.Integer, db.ForeignKey('production_run.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     item = db.relationship('CostItem', backref=db.backref('movements', lazy='dynamic'))
@@ -715,3 +768,34 @@ class StockTakeLine(db.Model):
     __table_args__ = (
         db.UniqueConstraint('stock_take_id', 'item_id', name='uq_stock_take_item'),
     )
+
+
+class ProductionRun(db.Model):
+    """Manufacturing sheet: batches made on a date; posting pulls ingredients and adds made items."""
+    __tablename__ = 'production_run'
+
+    id = db.Column(db.Integer, primary_key=True)
+    run_date = db.Column(db.Date, nullable=False)
+    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), nullable=False)
+    note = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    location = db.relationship('Location')
+    lines = db.relationship('ProductionLine', backref='run', lazy=True,
+                            cascade='all, delete-orphan', order_by='ProductionLine.id')
+
+    def total_cost(self) -> Decimal:
+        return sum((Decimal(l.batch_cost or 0) * Decimal(l.batches or 0) for l in self.lines), Decimal('0'))
+
+
+class ProductionLine(db.Model):
+    __tablename__ = 'production_line'
+
+    id = db.Column(db.Integer, primary_key=True)
+    run_id = db.Column(db.Integer, db.ForeignKey('production_run.id'), nullable=False)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
+    batches = db.Column(db.Numeric(12, 4), nullable=False)
+    output_qty = db.Column(db.Numeric(14, 4), nullable=False)  # output item units made
+    batch_cost = db.Column(db.Numeric(12, 4), nullable=True)  # snapshot when posted
+
+    recipe = db.relationship('Recipe')
