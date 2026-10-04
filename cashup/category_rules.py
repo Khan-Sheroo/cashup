@@ -91,11 +91,25 @@ _MENU_DISH = re.compile(
 )
 
 
-def guess_category(name: str | None, menu_item: bool = False) -> str | None:
-    """Category for an item name, or None if no rule matches.
+# def guess_category(name: str | None, menu_item: bool = False) -> str | None:
+#     """Category for an item name, or None if no rule matches.
 
-    menu_item=True for POS sales mix names, where dishes and made drinks get no category.
-    """
+#     menu_item=True for POS sales mix names, where dishes and made drinks get no category.
+#     """
+#     text = ' '.join((name or '').split())
+#     if not text or (_MADE_DRINK.search(text) and not re.search(r'juice', text, re.IGNORECASE)):
+#         return None
+#     if menu_item and _MENU_DISH.search(text):
+#         return None
+#     for category, pattern in _COMPILED:
+#         if pattern.search(text):
+#             return category
+#     return None
+
+def guess_category(name: str | None, mentu_item: bool = False) -> str | None:
+    """Category for an item name, or None if no rule matches.
+    menu_item=True for Pos sales mix names, where dishes and made drinks get no category."""
+
     text = ' '.join((name or '').split())
     if not text or (_MADE_DRINK.search(text) and not re.search(r'juice', text, re.IGNORECASE)):
         return None
@@ -105,3 +119,4 @@ def guess_category(name: str | None, menu_item: bool = False) -> str | None:
         if pattern.search(text):
             return category
     return None
+    
