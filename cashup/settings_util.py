@@ -20,9 +20,13 @@ TIP_OUT_BASIS_CHOICES = (
 )
 
 DEFAULT_TIP_RULES = [
-    {'key': 'cc_commission', 'label': 'CC Commission', 'percent': 5.0, 'enabled': True},
-    {'key': 'pool', 'label': 'Pool Tips', 'percent': 15.0, 'enabled': True},
+    {'key': 'cc_commission', 'label': 'CC Commission', 'percent': 5.0, 'enabled': False},
+    {'key': 'pool', 'label': 'Pool Tips', 'percent': 15.0, 'enabled': False},
 ]
+
+# Foreign cash is entered in its own currency and converted into SCR.
+USD_TO_SCR = Decimal('13')
+EUR_TO_SCR = Decimal('14')
 
 TIP_OUT_PRESETS = [
     {'key': 'runners', 'label': 'Runners', 'percent': 5.0},
@@ -94,6 +98,16 @@ def enabled_tip_rules(rules: list[dict]) -> list[dict]:
 
 def currency_symbol(code: str) -> str:
     return CURRENCIES.get(code, CURRENCIES['ZAR'])['symbol']
+
+
+def cash_total_in_scr(cash_scr, cash_usd, cash_eur) -> Decimal:
+    """SCR cash plus US and euro amounts converted at the fixed rates."""
+    total = (
+        Decimal(cash_scr or 0)
+        + Decimal(cash_usd or 0) * USD_TO_SCR
+        + Decimal(cash_eur or 0) * EUR_TO_SCR
+    )
+    return total.quantize(Decimal('0.01'))
 
 
 def calculate_tip_breakdown(

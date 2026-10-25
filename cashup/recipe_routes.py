@@ -6,7 +6,10 @@ from decimal import Decimal
 
 from cashup.models import BATCH_YIELD_UNITS, CostItem, InvoiceLine, Location, Recipe, RecipeLine, SalesLine
 from cashup.production import YIELD_UNIT_VALUES, sync_output_item
-from cashup.recipe_util import COMMON_UNITS, DEFAULT_CATEGORIES, is_valid_unit, to_decimal
+from cashup.recipe_util import (
+    COMMON_UNITS, DEFAULT_CATEGORIES, SPIRIT_BOTTLE_ML, SPIRIT_CATEGORIES, is_spirit_category,
+    is_valid_unit, to_decimal,
+)
 
 recipes_bp = Blueprint('recipes', __name__, url_prefix='/recipes')
 
@@ -398,6 +401,8 @@ def _render_item_form(item):
         item=item,
         common_units=COMMON_UNITS,
         categories=category_suggestions(),
+        spirit_categories=SPIRIT_CATEGORIES,
+        spirit_bottle_ml=SPIRIT_BOTTLE_ML,
     )
 
 
@@ -446,6 +451,10 @@ def add_item():
         guessed = not values['category'] and _matching_category(guess_category(values['name']))
         if guessed:
             values['category'] = guessed
+        if is_spirit_category(values['category']) and values['unit'] == 'each' and values['pack_size'] == 1:
+            values.update(unit='ml', pack_size=SPIRIT_BOTTLE_ML)
+            values['count_unit'] = values['count_unit'] or 'Bot'
+            values['count_factor'] = values['count_factor'] or SPIRIT_BOTTLE_ML
         item = CostItem(**values)
         db.session.add(item)
         db.session.commit()

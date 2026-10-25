@@ -8,9 +8,12 @@ from cashup.models import (
 )
 from cashup.settings_util import (
     CURRENCIES,
+    EUR_TO_SCR,
     TIP_OUT_BASIS_CHOICES,
     TIP_OUT_PRESETS,
+    USD_TO_SCR,
     calculate_tip_breakdown,
+    cash_total_in_scr,
     tip_outs_to_legacy,
     tip_outs_as_float_dict,
     sum_tip_outs_for_rows,
@@ -581,24 +584,30 @@ def persist_cashup_drafts(form):
         
         cashup_id_str = form.get(f'cashup_id_{i}', '')
         turnover_str = form.get(f'turnover_{i}', '0') or '0'
-        cash_str = form.get(f'cash_{i}', '0') or '0'
+        cash_scr_str = form.get(f'cash_scr_{i}', '0') or '0'
+        cash_usd_str = form.get(f'cash_usd_{i}', '0') or '0'
+        cash_eur_str = form.get(f'cash_eur_{i}', '0') or '0'
         credit_card_str = form.get(f'credit_card_{i}', '0') or '0'
         credit_sale_str = form.get(f'credit_sale_{i}', '0') or '0'
         
         try:
             turnover = Decimal(turnover_str)
-            cash_total = Decimal(cash_str)
+            cash_scr = Decimal(cash_scr_str)
+            cash_usd = Decimal(cash_usd_str)
+            cash_eur = Decimal(cash_eur_str)
             credit_card = Decimal(credit_card_str)
             credit_sale = Decimal(credit_sale_str)
         except (InvalidOperation, ValueError):
             errors.append(f'Row {i+1}: Invalid numeric values')
             continue
+
+        cash_total = cash_total_in_scr(cash_scr, cash_usd, cash_eur)
         
         if turnover < 0:
             errors.append(f'Row {i+1}: Turnover cannot be negative')
             continue
         
-        if cash_total < 0:
+        if cash_scr < 0 or cash_usd < 0 or cash_eur < 0:
             errors.append(f'Row {i+1}: Cash cannot be negative')
             continue
         
@@ -638,6 +647,9 @@ def persist_cashup_drafts(form):
             existing_cashup.staff_id = staff_id
             existing_cashup.date = entry_date_obj
             existing_cashup.turnover = turnover
+            existing_cashup.cash_scr = cash_scr
+            existing_cashup.cash_usd = cash_usd
+            existing_cashup.cash_eur = cash_eur
             existing_cashup.cash_total = cash_total
             existing_cashup.credit_card_total = credit_card
             existing_cashup.credit_sale = credit_sale
@@ -651,6 +663,9 @@ def persist_cashup_drafts(form):
                 staff_id=staff_id,
                 date=entry_date_obj,
                 turnover=turnover,
+                cash_scr=cash_scr,
+                cash_usd=cash_usd,
+                cash_eur=cash_eur,
                 cash_total=cash_total,
                 credit_card_total=credit_card,
                 credit_sale=credit_sale,
@@ -685,6 +700,8 @@ def persist_cashup_drafts(form):
     for draft in draft_cashups_to_delete:
         if draft.id not in cashup_ids_to_keep:
             db.session.delete(draft)
+
+    save_manager_note(entry_date_obj, form.get('manager_note', ''))
     
     db.session.commit()
     
@@ -698,6 +715,25 @@ def persist_cashup_drafts(form):
         'row_ids': row_ids,
         'saved_count': saved_count
     }
+
+
+def save_manager_note(entry_date, note):
+    """Store the cash-up manager's note for a date."""
+    text = (note or '').strip()
+    summary = DailySummary.query.filter_by(date=entry_date).first()
+    if summary is None:
+        if not text:
+            return
+        db.session.add(DailySummary(date=entry_date, manager_note=text))
+        return
+    summary.manager_note = text
+
+
+def manager_note_for_date(entry_date):
+    summary = DailySummary.query.filter_by(date=entry_date).first()
+    if not summary or not summary.manager_note:
+        return ''
+    return summary.manager_note
 
 
 def sync_waiter_tips_for_date(entry_date):
@@ -732,6 +768,111 @@ def sync_waiter_tips_for_date(entry_date):
             ))
     
     db.session.commit()
+
+
+def _empty_figures():
+    return {
+        'turnover': 0.0,
+        'cash_scr': 0.0,
+        'cash_usd': 0.0,
+        'cash_eur': 0.0,
+        'cash': 0.0,
+        'credit_card': 0.0,
+        'credit_sale': 0.0,
+        'net': 0.0,
+    }
+
+
+def _add_cashup_figures(bucket, cashup):
+    bucket['turnover'] += float(cashup.turnover or 0)
+    bucket['cash_scr'] += float(cashup.cash_scr or 0)
+    bucket['cash_usd'] += float(cashup.cash_usd or 0)
+    bucket['cash_eur'] += float(cashup.cash_eur or 0)
+    bucket['cash'] += float(cashup.cash_total or 0)
+    bucket['credit_card'] += float(cashup.credit_card_total or 0)
+    bucket['credit_sale'] += float(cashup.credit_sale or 0)
+    bucket['net'] = bucket['cash'] + bucket['credit_card'] + bucket['credit_sale']
+
+
+def _merge_figures(dest, src):
+    for key in ('turnover', 'cash_scr', 'cash_usd', 'cash_eur', 'cash', 'credit_card', 'credit_sale'):
+        dest[key] += src[key]
+    dest['net'] = dest['cash'] + dest['credit_card'] + dest['credit_sale']
+
+
+def history_bounds(anchor, start_raw='', end_raw=''):
+    """Date range for submitted history. Defaults to the week of anchor (Mon–Sun)."""
+    week_start = anchor - timedelta(days=anchor.weekday())
+    week_end = week_start + timedelta(days=6)
+
+    def _parse(raw, fallback):
+        if not raw:
+            return fallback
+        try:
+            return datetime.strptime(raw, '%Y-%m-%d').date()
+        except ValueError:
+            return fallback
+
+    start = _parse(start_raw, week_start)
+    end = _parse(end_raw, week_end)
+    if end < start:
+        start, end = end, start
+    if (end - start).days > 92:
+        end = start + timedelta(days=92)
+    return start, end
+
+
+def build_submitted_history(start, end):
+    """Submitted cash-ups grouped by date: that day's totals, then its departments."""
+    rows = CashUp.query.join(Staff).filter(
+        CashUp.submitted.is_(True),
+        CashUp.date >= start,
+        CashUp.date <= end,
+    ).order_by(CashUp.date, Staff.name).all()
+
+    per_day = {}
+    per_dept_day = {}
+    for row in rows:
+        per_day.setdefault(row.date, _empty_figures())
+        _add_cashup_figures(per_day[row.date], row)
+        key = (row.staff.name, row.date)
+        per_dept_day.setdefault(key, _empty_figures())
+        _add_cashup_figures(per_dept_day[key], row)
+
+    notes_by_date = {
+        summary.date: (summary.manager_note or '').strip()
+        for summary in DailySummary.query.filter(
+            DailySummary.date >= start,
+            DailySummary.date <= end,
+        )
+    }
+
+    days = []
+    grand = _empty_figures()
+    cursor = start
+    while cursor <= end:
+        if cursor in per_day:
+            figures = per_day[cursor]
+            departments = [
+                {'name': name, 'figures': per_dept_day[(name, cursor)]}
+                for name in sorted(dept_name for dept_name, dept_day in per_dept_day if dept_day == cursor)
+            ]
+            days.append({
+                'date': cursor,
+                'figures': figures,
+                'departments': departments,
+                'note': notes_by_date.get(cursor, ''),
+            })
+            _merge_figures(grand, figures)
+        cursor += timedelta(days=1)
+
+    return {
+        'start': start,
+        'end': end,
+        'days': days,
+        'totals': grand,
+        'has_rows': bool(rows),
+    }
 
 
 @cashup_bp.route('/new', methods=['GET', 'POST'])
@@ -830,7 +971,7 @@ def new_cashup():
     day_total_turnover = total_turnover + draft_total_turnover
     day_total_cash = total_cash + draft_total_cash
     day_total_credit_sale = total_credit_sale + draft_total_credit_sale
-    day_total_net_turnover = day_total_turnover - day_total_credit_sale
+    day_total_net_turnover = day_total_cash + day_total_cc + day_total_credit_sale
     
     # Day tip-out totals
     day_tip_outs = {
@@ -843,10 +984,23 @@ def new_cashup():
     card_batch_dict = {batch.terminal_id: float(batch.batch_total) for batch in card_batches}
     total_batches_calculated = sum(card_batch_dict.values())
     
+    total_cash_scr = sum(float(c.cash_scr or 0) for c in cashups)
+    total_cash_usd = sum(float(c.cash_usd or 0) for c in cashups)
+    total_cash_eur = sum(float(c.cash_eur or 0) for c in cashups)
+
+    hist_start, hist_end = history_bounds(
+        filter_date_obj,
+        request.args.get('hist_start', ''),
+        request.args.get('hist_end', ''),
+    )
+    history = build_submitted_history(hist_start, hist_end)
+
     tip_settings_json = json.dumps({
         'tip_out_basis': settings.tip_out_basis,
         'tip_rules': tip_rules,
         'currency_symbol': settings.currency_symbol,
+        'usd_to_scr': float(USD_TO_SCR),
+        'eur_to_scr': float(EUR_TO_SCR),
     })
     
     return render_template('cashup/new.html', 
@@ -859,6 +1013,9 @@ def new_cashup():
                          filter_staff_id=filter_staff_id,
                          total_turnover=total_turnover,
                          total_cash=total_cash,
+                         total_cash_scr=total_cash_scr,
+                         total_cash_usd=total_cash_usd,
+                         total_cash_eur=total_cash_eur,
                          total_credit_card=total_credit_card,
                          total_credit_sale=total_credit_sale,
                          total_tips=total_tips,
@@ -880,7 +1037,11 @@ def new_cashup():
                          card_machine_terminals=CARD_MACHINE_TERMINALS,
                          card_batch_dict=card_batch_dict,
                          total_batches_calculated=total_batches_calculated,
-                         has_drafts=len(draft_cashups) > 0)
+                         has_drafts=len(draft_cashups) > 0,
+                         manager_note=manager_note_for_date(filter_date_obj),
+                         hist_start=hist_start,
+                         hist_end=hist_end,
+                         history=history)
 
 
 @cashup_bp.route('/autosave', methods=['POST'])
@@ -925,8 +1086,11 @@ def print_cashup():
     day_total_cash = sum(float(c.cash_total) for c in rows)
     day_total_cc = sum(float(c.credit_card_total) for c in rows)
     day_total_credit_sale = sum(float(c.credit_sale or 0) for c in rows)
-    day_total_net_turnover = day_total_turnover - day_total_credit_sale
+    day_total_net_turnover = day_total_cash + day_total_cc + day_total_credit_sale
     day_total_tips = sum(float(c.tip_amount) for c in rows)
+    day_cash_scr = sum(float(c.cash_scr or 0) for c in rows)
+    day_cash_usd = sum(float(c.cash_usd or 0) for c in rows)
+    day_cash_eur = sum(float(c.cash_eur or 0) for c in rows)
     day_tip_outs = sum_tip_outs_for_rows(rows, tip_rules)
     
     card_batches = CardMachineBatch.query.filter_by(date=sheet_date).all()
@@ -944,12 +1108,29 @@ def print_cashup():
         day_total_credit_sale=day_total_credit_sale,
         day_total_net_turnover=day_total_net_turnover,
         day_total_tips=day_total_tips,
+        day_cash_scr=day_cash_scr,
+        day_cash_usd=day_cash_usd,
+        day_cash_eur=day_cash_eur,
         day_tip_outs=day_tip_outs,
         tip_rules=tip_rules,
         card_machine_terminals=CARD_MACHINE_TERMINALS,
         card_batch_dict=card_batch_dict,
-        total_batches=total_batches
+        total_batches=total_batches,
+        manager_note=manager_note_for_date(sheet_date),
     )
+
+
+@cashup_bp.route('/history/print')
+def history_print():
+    """Printable submitted-history report for a date range."""
+    anchor = date.today() - timedelta(days=1)
+    start, end = history_bounds(
+        anchor,
+        request.args.get('start', ''),
+        request.args.get('end', ''),
+    )
+    history = build_submitted_history(start, end)
+    return render_template('cashup/history_print.html', history=history)
 
 
 @cashup_bp.route('/waiter-slips')

@@ -22,7 +22,10 @@ from cashup.inventory_import import (
 from cashup.inventory_util import last_movement_dates, on_hand_map, period_summary, explode_recipe
 from cashup.category_rules import guess_category
 from cashup.recipe_routes import _matching_category, category_suggestions
-from cashup.recipe_util import INVOICE_QTY_UNIT_VALUES, INVOICE_QTY_UNITS, unit_conversion
+from cashup.recipe_util import (
+    INVOICE_QTY_UNIT_VALUES, INVOICE_QTY_UNITS, SPIRIT_BOTTLE_ML, SPIRIT_CASE_SIZES,
+    SPIRIT_CATEGORIES, case_bottles, is_spirit_category, unit_conversion,
+)
 from cashup.models import (
     MOVEMENT_KINDS, CostItem, Invoice, InvoiceLine, Location, PosItemAlias, ProductionLine,
     ProductionRun, Recipe, RecipeLine, Requisition, RequisitionLine, SalesImport, SalesLine,
@@ -153,12 +156,14 @@ def adjust():
         posted = 0
         item_ids = request.form.getlist('line_item_id')
         quantities = request.form.getlist('line_quantity')
+        units = request.form.getlist('line_unit')
         for idx, raw_item in enumerate(item_ids):
             item = CostItem.query.get(_parse_int(raw_item))
             qty = to_dec(quantities[idx] if idx < len(quantities) else None)
             if item is None or qty is None or qty == 0:
                 continue
-            base = item.to_base_units(qty)
+            in_base_units = idx < len(units) and units[idx] == 'base'
+            base = qty if in_base_units else item.to_base_units(qty)
             if kind == 'waste':
                 movement_kind, base = 'waste', -abs(base)
             elif kind == 'opening':
@@ -304,16 +309,28 @@ def _match_invoice_line(supplier, description, candidates):
     item_id = suggest_match(description, candidates, cutoff=0.75)
     if item_id:
         item = CostItem.query.get(item_id)
-        return item_id, item.pack_size if item else None, 'unit'
+        return item_id, _pack_units_per_line(item, description), 'unit'
     return None, None, 'unit'
 
 
-def _units_per_line(qty_unit, item, entered):
+def _pack_units_per_line(item, description):
+    """Recipe units in one invoice quantity of item: a spirit case of 6/12 is 6/12 bottles."""
+    if item is None:
+        return None
+    units = Decimal(item.pack_size or 1)
+    if is_spirit_category(item.category):
+        units *= case_bottles(description)
+    return units
+
+
+def _units_per_line(qty_unit, item, entered, description=None):
     """Recipe units per invoice quantity: converted for kg/g/L/ml, otherwise as entered."""
     if qty_unit != 'unit' and item is not None:
         factor = unit_conversion(qty_unit, item.unit)
         if factor is not None:
             return factor
+    if entered is None and description is not None:
+        return _pack_units_per_line(item, description)
     return entered
 
 
@@ -350,6 +367,8 @@ def review_invoice(invoice_id):
         locations=Location.ordered(),
         suppliers=Supplier.query.order_by(Supplier.name).all(),
         qty_units=INVOICE_QTY_UNITS,
+        spirit_categories=SPIRIT_CATEGORIES,
+        spirit_case_sizes=SPIRIT_CASE_SIZES,
     )
 
 
@@ -430,16 +449,22 @@ def _item_for_unmatched_line(line):
     item = CostItem.query.filter(db.func.lower(CostItem.name) == name.lower()).first()
     if item is not None:
         return item, False
+    category = _matching_category(guess_category(name))
     unit, pack_size = NEW_ITEM_UNITS.get(line.qty_unit or 'unit', NEW_ITEM_UNITS['unit'])
+    count_unit = None if unit == 'each' else line.qty_unit
+    cost_price = _line_price_per_qty(line) * pack_size / (
+        unit_conversion(line.qty_unit, unit) or Decimal('1'))
+    if is_spirit_category(category) and (line.qty_unit or 'unit') == 'unit':
+        unit, pack_size, count_unit = 'ml', SPIRIT_BOTTLE_ML, 'Bot'
+        cost_price = _line_price_per_qty(line) / case_bottles(line.description)
     item = CostItem(
         name=name,
         unit=unit,
         pack_size=pack_size,
-        cost_price=_line_price_per_qty(line) * pack_size / (
-            unit_conversion(line.qty_unit, unit) or Decimal('1')),
-        count_unit=None if unit == 'each' else line.qty_unit,
-        count_factor=None,
-        category=_matching_category(guess_category(name)),
+        cost_price=cost_price,
+        count_unit=count_unit,
+        count_factor=pack_size if count_unit == 'Bot' else None,
+        category=category,
         active=True,
     )
     db.session.add(item)
@@ -465,7 +490,8 @@ def _confirm_invoice(invoice, update_cost):
         if not line.item_id:
             item, is_new = _item_for_unmatched_line(line)
             line.item_id = item.id
-            line.units_per_line = _units_per_line(line.qty_unit, item, None) or Decimal('1')
+            line.units_per_line = _units_per_line(
+                line.qty_unit, item, None, line.description) or Decimal('1')
             if is_new:
                 created.append(item.name)
     if created:
@@ -779,9 +805,12 @@ def _item_for_unmapped_sale(line):
     item = CostItem.query.filter(db.func.lower(CostItem.name) == name.lower()).first()
     if item is not None:
         return item, False
+    category = _matching_category(guess_category(name, menu_item=True)) or 'From Sales Mix'
     item = CostItem(name=name, unit='each', pack_size=Decimal('1'), cost_price=ZERO,
-                    category=_matching_category(guess_category(name, menu_item=True)) or 'From Sales Mix',
-                    active=True)
+                    category=category, active=True)
+    if is_spirit_category(category):
+        item.unit, item.pack_size = 'ml', SPIRIT_BOTTLE_ML
+        item.count_unit, item.count_factor = 'Bot', SPIRIT_BOTTLE_ML
     db.session.add(item)
     db.session.flush()
     return item, True

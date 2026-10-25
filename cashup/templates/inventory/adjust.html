@@ -6,7 +6,7 @@
 <div class="work-sheet" style="max-width: 56rem;">
     <h1>Manual Stock Entry</h1>
     <div class="sheet-meta">
-        <small>Quantities are in each item's count unit (e.g. Bot, Glass, ml). Use "Opening Balance" to set starting stock.</small>
+        <small>Choose the unit per line — the item's count unit (e.g. Bot) or its recipe unit (e.g. ml). Use "Opening Balance" to set starting stock.</small>
     </div>
 
     <form method="POST">
@@ -39,7 +39,7 @@
 
         <table class="sheet-table">
             <thead>
-                <tr><th>Item</th><th style="width:14%">Count Unit</th><th style="width:18%">Quantity</th><th style="width:6%"></th></tr>
+                <tr><th>Item</th><th style="width:14%">Unit</th><th style="width:18%">Quantity</th><th style="width:6%"></th></tr>
             </thead>
             <tbody id="lines-body"></tbody>
         </table>
@@ -52,7 +52,7 @@
     </form>
 </div>
 
-{% include "inventory/_item_line_template.html" %}
+{% with unit_choice=True %}{% include "inventory/_item_line_template.html" %}{% endwith %}
 {% endblock %}
 
 {% block extra_js %}

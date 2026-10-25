@@ -137,6 +137,9 @@ class CashUp(db.Model):
     date = db.Column(db.Date, nullable=False)
     turnover = db.Column(db.Numeric(10, 2), nullable=False)
     cash_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    cash_scr = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    cash_usd = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    cash_eur = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     credit_card_total = db.Column(db.Numeric(10, 2), nullable=False)
     credit_sale = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     tip_amount = db.Column(db.Numeric(10, 2), nullable=False)
@@ -174,6 +177,7 @@ class DailySummary(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, unique=True)
+    manager_note = db.Column(db.Text, nullable=True)
     box_office_total_received = db.Column(db.Numeric(10, 2), nullable=True)
     runners_count = db.Column(db.Integer, nullable=True)
     barmen_count = db.Column(db.Integer, nullable=True)

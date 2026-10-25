@@ -1,0 +1,89 @@
+{% macro figure_cells(f) %}
+<td class="num text-end">{{ f.turnover|money }}</td>
+<td class="num text-end">{{ f.cash_scr|money }}</td>
+<td class="num text-end">${{ "%.2f"|format(f.cash_usd) }}</td>
+<td class="num text-end">€{{ "%.2f"|format(f.cash_eur) }}</td>
+<td class="num text-end">{{ f.cash|money }}</td>
+<td class="num text-end">{{ f.credit_card|money }}</td>
+<td class="num text-end">{{ f.credit_sale|money }}</td>
+<td class="num text-end">{{ f.net|money }}</td>
+{% endmacro %}
+
+{% macro figure_heads() %}
+<th>Turnover</th>
+<th>SCR</th>
+<th>US</th>
+<th>Euro</th>
+<th>Cash</th>
+<th>Credit Card</th>
+<th>Credit Sale</th>
+<th>Net Turnover</th>
+{% endmacro %}
+
+<p class="sheet-meta">{{ history.start.strftime('%d %b %Y') }} – {{ history.end.strftime('%d %b %Y') }}. Net turnover is cash + credit card + credit sale.</p>
+
+{% if history.days %}
+    {% for day in history.days %}
+    <h2>{{ day.date.strftime('%a %d %b') }} Totals</h2>
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr>
+                    {{ figure_heads() }}
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    {{ figure_cells(day.figures) }}
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3 class="dept-heading">{{ day.date.strftime('%a %d %b') }} by department</h3>
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr>
+                    <th>Department</th>
+                    {{ figure_heads() }}
+                </tr>
+            </thead>
+            <tbody>
+                {% for dept in day.departments %}
+                <tr>
+                    <td>{{ dept.name }}</td>
+                    {{ figure_cells(dept.figures) }}
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th>Total</th>
+                    {{ figure_cells(day.figures) }}
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% endfor %}
+
+    {% if history.days|length > 1 %}
+    <h2>Range Total</h2>
+    <div class="table-responsive">
+        <table class="sheet-table">
+            <thead>
+                <tr>
+                    {{ figure_heads() }}
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    {{ figure_cells(history.totals) }}
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+{% else %}
+<p class="text-muted">No submitted cash-ups in this date range.</p>
+{% endif %}

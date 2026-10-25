@@ -125,6 +125,12 @@
         .batch-item .terminal {
             font-weight: 600;
         }
+        .manager-note {
+            border: 1px solid #333;
+            padding: 0.5rem 0.65rem;
+            white-space: pre-wrap;
+            min-height: 2.5rem;
+        }
 
         @media print {
             @page {
@@ -183,7 +189,7 @@
                 <div class="value">{{ day_total_net_turnover|money }}</div>
             </div>
             <div class="summary-item">
-                <div class="label">Total Cash</div>
+                <div class="label">Total Cash (SCR)</div>
                 <div class="value">{{ day_total_cash|money }}</div>
             </div>
             <div class="summary-item">
@@ -221,19 +227,25 @@
         </div>
 
         <h2>Staff Cash-Ups</h2>
+        <p class="sheet-meta">Cash is the total in SCR. US dollars at {{ usd_to_scr }} SCR, euros at {{ eur_to_scr }} SCR.</p>
         {% if rows %}
         <table>
             <thead>
                 <tr>
                     <th>Staff</th>
                     <th>Turnover</th>
+                    <th>SCR</th>
+                    <th>US</th>
+                    <th>Euro</th>
                     <th>Cash</th>
                     <th>Credit Card</th>
                     <th>Credit Sale</th>
+                    {% if tip_rules %}
                     <th>Tip Amount</th>
                     {% for rule in tip_rules %}
                     <th>{{ rule.label }}</th>
                     {% endfor %}
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -242,13 +254,18 @@
                 <tr>
                     <td class="name">{{ row.staff.name }}</td>
                     <td class="num">{{ row.turnover|money }}</td>
+                    <td class="num">{{ (row.cash_scr or 0)|money }}</td>
+                    <td class="num">${{ "%.2f"|format(row.cash_usd or 0) }}</td>
+                    <td class="num">€{{ "%.2f"|format(row.cash_eur or 0) }}</td>
                     <td class="num">{{ row.cash_total|money }}</td>
                     <td class="num">{{ row.credit_card_total|money }}</td>
                     <td class="num">{{ (row.credit_sale or 0)|money }}</td>
+                    {% if tip_rules %}
                     <td class="num">{{ row.tip_amount|money }}</td>
                     {% for rule in tip_rules %}
                     <td class="num">{{ outs.get(rule.key, 0)|money }}</td>
                     {% endfor %}
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -256,18 +273,28 @@
                 <tr>
                     <th>Totals</th>
                     <th class="num">{{ day_total_turnover|money }}</th>
+                    <th class="num">{{ day_cash_scr|money }}</th>
+                    <th class="num">${{ "%.2f"|format(day_cash_usd) }}</th>
+                    <th class="num">€{{ "%.2f"|format(day_cash_eur) }}</th>
                     <th class="num">{{ day_total_cash|money }}</th>
                     <th class="num">{{ day_total_cc|money }}</th>
                     <th class="num">{{ day_total_credit_sale|money }}</th>
+                    {% if tip_rules %}
                     <th class="num">{{ day_total_tips|money }}</th>
                     {% for rule in tip_rules %}
                     <th class="num">{{ day_tip_outs.get(rule.key, 0)|money }}</th>
                     {% endfor %}
+                    {% endif %}
                 </tr>
             </tfoot>
         </table>
         {% else %}
         <p>No cash-up entries for this date.</p>
+        {% endif %}
+
+        {% if manager_note %}
+        <h2>Manager Note</h2>
+        <div class="manager-note">{{ manager_note }}</div>
         {% endif %}
     </div>
 

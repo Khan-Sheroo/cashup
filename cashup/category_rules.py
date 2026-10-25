@@ -106,7 +106,7 @@ _MENU_DISH = re.compile(
 #             return category
 #     return None
 
-def guess_category(name: str | None, mentu_item: bool = False) -> str | None:
+def guess_category(name: str | None, menu_item: bool = False) -> str | None:
     """Category for an item name, or None if no rule matches.
     menu_item=True for Pos sales mix names, where dishes and made drinks get no category."""
 

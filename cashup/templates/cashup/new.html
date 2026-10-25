@@ -170,9 +170,15 @@
     }
     .sheet-table .numeric-input,
     .sheet-table .tip-amount,
-    .sheet-table .tip-out-amount {
+    .sheet-table .tip-out-amount,
+    .sheet-table .cash-total {
         text-align: right;
         font-variant-numeric: tabular-nums;
+    }
+    .sheet-table td.cash-total {
+        background: #f8f8f8;
+        font-weight: 700;
+        white-space: nowrap;
     }
     .sheet-table .tip-amount,
     .sheet-table .tip-out-amount {
@@ -183,6 +189,32 @@
         background-color: #f8d7da !important;
         color: #721c24;
         font-weight: bold;
+    }
+    .manager-note {
+        margin-top: 0.85rem;
+    }
+    .manager-note label {
+        display: block;
+        font-weight: 700;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.35rem;
+    }
+    .manager-note textarea {
+        width: 100%;
+        min-height: 6.5rem;
+        border: 1px solid #333;
+        border-radius: 0;
+        padding: 0.5rem 0.65rem;
+        font-size: 0.95rem;
+        resize: vertical;
+        background: #fff;
+    }
+    .manager-note textarea:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 1px #111;
+        background: #fffef5;
     }
     .sheet-actions {
         display: flex;
@@ -198,6 +230,24 @@
     }
     .history-sheet {
         margin-top: 1.5rem;
+    }
+    .history-sheet .dept-heading {
+        font-size: 0.95rem;
+        margin: 0.9rem 0 0.35rem;
+    }
+    .history-sheet .history-empty {
+        color: #888;
+    }
+    .history-range {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 0.75rem;
+    }
+    .history-range input[type="date"] {
+        border: 1px solid #333;
+        border-radius: 0;
+        padding: 0.25rem 0.5rem;
     }
     .staff-files-sheet .staff-files-controls {
         display: flex;
@@ -515,7 +565,7 @@
             <input type="text" class="sheet-value" id="total_net_turnover" name="total_net_turnover" readonly value="{{ day_total_net_turnover|money }}">
         </div>
         <div class="summary-item">
-            <div class="label">Total Cash</div>
+            <div class="label">Total Cash (SCR)</div>
             <input type="text" class="sheet-value" id="total_cash" name="total_cash" readonly value="{{ day_total_cash|money }}" data-saved-cash="{{ "%.2f"|format(total_cash) }}">
         </div>
         <div class="summary-item">
@@ -567,19 +617,25 @@
     </div>
 
     <h2>Staff Cash-Ups</h2>
+    <p class="sheet-meta" style="margin-top: -0.35rem;">Enter each currency. Cash is the total in SCR — US dollars at {{ usd_to_scr }} SCR, euros at {{ eur_to_scr }} SCR.</p>
     <div class="table-responsive">
         <table class="sheet-table" id="cashupTable">
             <thead>
                 <tr>
                     <th style="width: 14%;">Staff</th>
                     <th>Turnover</th>
-                    <th>Cash</th>
+                    <th title="Seychelles rupees">SCR</th>
+                    <th title="US dollars, × {{ usd_to_scr }} SCR">US</th>
+                    <th title="Euros, × {{ eur_to_scr }} SCR">Euro</th>
+                    <th title="Total cash in SCR">Cash</th>
                     <th>Credit Card</th>
                     <th>Credit Sale</th>
+                    {% if tip_rules %}
                     <th>Tip Amount</th>
                     {% for rule in tip_rules %}
                     <th>{{ rule.label }}</th>
                     {% endfor %}
+                    {% endif %}
                     <th style="width: 8%;">Actions</th>
                 </tr>
             </thead>
@@ -607,10 +663,23 @@
                         </td>
                         <td>
                             <div class="money-input">
-                                <span class="currency-prefix">{{ currency_symbol }}</span>
-                                <input type="number" class="form-control form-control-sm numeric-input cash-input" name="cash_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.cash_total) }}">
+                                <span class="currency-prefix">SCR</span>
+                                <input type="number" class="form-control form-control-sm numeric-input cash-scr-input" name="cash_scr_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.cash_scr or 0) }}">
                             </div>
                         </td>
+                        <td>
+                            <div class="money-input">
+                                <span class="currency-prefix">$</span>
+                                <input type="number" class="form-control form-control-sm numeric-input cash-usd-input" name="cash_usd_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.cash_usd or 0) }}">
+                            </div>
+                        </td>
+                        <td>
+                            <div class="money-input">
+                                <span class="currency-prefix">€</span>
+                                <input type="number" class="form-control form-control-sm numeric-input cash-eur-input" name="cash_eur_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.cash_eur or 0) }}">
+                            </div>
+                        </td>
+                        <td class="cash-total">{{ cashup.cash_total|money }}</td>
                         <td>
                             <div class="money-input">
                                 <span class="currency-prefix">{{ currency_symbol }}</span>
@@ -623,6 +692,7 @@
                                 <input type="number" class="form-control form-control-sm numeric-input creditsale-input" name="credit_sale_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.credit_sale or 0) }}">
                             </div>
                         </td>
+                        {% if tip_rules %}
                         <td>
                             <input type="text" class="form-control form-control-sm tip-amount" name="tip_{{ row_i }}" readonly value="{{ cashup.tip_amount|money }}">
                         </td>
@@ -631,6 +701,7 @@
                             <input type="text" class="form-control form-control-sm tip-out-amount" data-tip-key="{{ rule.key }}" name="tip_out_{{ rule.key }}_{{ row_i }}" readonly value="{{ outs.get(rule.key, 0)|money }}">
                         </td>
                         {% endfor %}
+                        {% endif %}
                         <td>
                             <button type="button" class="btn btn-sm btn-outline-dark remove-row">Remove</button>
                         </td>
@@ -655,10 +726,23 @@
                     </td>
                     <td>
                         <div class="money-input">
-                            <span class="currency-prefix">{{ currency_symbol }}</span>
-                            <input type="number" class="form-control form-control-sm numeric-input cash-input" name="cash_0" step="0.01" min="0" value="0">
+                            <span class="currency-prefix">SCR</span>
+                            <input type="number" class="form-control form-control-sm numeric-input cash-scr-input" name="cash_scr_0" step="0.01" min="0" value="0">
                         </div>
                     </td>
+                    <td>
+                        <div class="money-input">
+                            <span class="currency-prefix">$</span>
+                            <input type="number" class="form-control form-control-sm numeric-input cash-usd-input" name="cash_usd_0" step="0.01" min="0" value="0">
+                        </div>
+                    </td>
+                    <td>
+                        <div class="money-input">
+                            <span class="currency-prefix">€</span>
+                            <input type="number" class="form-control form-control-sm numeric-input cash-eur-input" name="cash_eur_0" step="0.01" min="0" value="0">
+                        </div>
+                    </td>
+                    <td class="cash-total">{{ 0|money }}</td>
                     <td>
                         <div class="money-input">
                             <span class="currency-prefix">{{ currency_symbol }}</span>
@@ -671,6 +755,7 @@
                             <input type="number" class="form-control form-control-sm numeric-input creditsale-input" name="credit_sale_0" step="0.01" min="0" value="0">
                         </div>
                     </td>
+                    {% if tip_rules %}
                     <td>
                         <input type="text" class="form-control form-control-sm tip-amount" name="tip_0" readonly value="{{ 0|money }}">
                     </td>
@@ -679,6 +764,7 @@
                         <input type="text" class="form-control form-control-sm tip-out-amount" data-tip-key="{{ rule.key }}" name="tip_out_{{ rule.key }}_0" readonly value="{{ 0|money }}">
                     </td>
                     {% endfor %}
+                    {% endif %}
                     <td>
                         <button type="button" class="btn btn-sm btn-outline-dark remove-row" disabled>Remove</button>
                     </td>
@@ -686,6 +772,12 @@
                 {% endif %}
             </tbody>
         </table>
+    </div>
+
+    <div class="manager-note">
+        <label for="manager_note">Manager Note</label>
+        <textarea id="manager_note" name="manager_note" rows="4"
+                  placeholder="Write a note for this cash-up">{{ manager_note or '' }}</textarea>
     </div>
 
     <div class="sheet-actions">
@@ -833,13 +925,21 @@
 <div class="work-sheet history-sheet">
     <h2>Submitted History</h2>
     <div class="sheet-meta mb-3">
-        <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
+        <form method="GET" class="history-range">
+            <input type="hidden" name="date" value="{{ filter_date }}">
             <input type="hidden" name="staff_id" value="{{ filter_staff_id }}">
-            <label for="date">Date</label>
-            <input type="date" id="date" name="date" value="{{ filter_date }}" onchange="this.form.submit()">
+            <label for="hist_start">From</label>
+            <input type="date" id="hist_start" name="hist_start" value="{{ hist_start.isoformat() }}" required>
+            <label for="hist_end">To</label>
+            <input type="date" id="hist_end" name="hist_end" value="{{ hist_end.isoformat() }}" required>
+            <button type="submit" class="btn btn-sm btn-dark" style="border-radius: 0;">View</button>
+            <a class="btn btn-sm btn-outline-dark" style="border-radius: 0;" target="_blank"
+               href="{{ url_for('cashup.history_print', start=hist_start.isoformat(), end=hist_end.isoformat()) }}">Print / Save PDF</a>
         </form>
         <form method="GET" class="d-flex align-items-center gap-2 flex-wrap">
             <input type="hidden" name="date" value="{{ filter_date }}">
+            <input type="hidden" name="hist_start" value="{{ hist_start.isoformat() }}">
+            <input type="hidden" name="hist_end" value="{{ hist_end.isoformat() }}">
             <label for="staff_id">Staff</label>
             <select class="form-select form-select-sm" id="staff_id" name="staff_id" onchange="this.form.submit()" style="width: auto; border-radius: 0; border-color: #333;">
                 <option value="">All Staff</option>
@@ -847,65 +947,10 @@
                 <option value="{{ staff.id }}" {% if filter_staff_id == staff.id|string %}selected{% endif %}>{{ staff.name }}</option>
                 {% endfor %}
             </select>
-            <a href="{{ url_for('cashup.new_cashup', date=filter_date) }}" class="btn btn-sm btn-outline-dark" style="border-radius: 0;">Clear</a>
         </form>
     </div>
 
-    {% if cashups %}
-    <div class="table-responsive">
-        <table class="sheet-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Staff</th>
-                    <th>Turnover</th>
-                    <th>Cash</th>
-                    <th>Credit Card</th>
-                    <th>Credit Sale</th>
-                    <th>Tip Amount</th>
-                    {% for rule in tip_rules %}
-                    <th>{{ rule.label }}</th>
-                    {% endfor %}
-                    <th>Submitted At</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for cashup in cashups %}
-                {% set outs = cashup.get_tip_outs() %}
-                <tr>
-                    <td>{{ cashup.date.strftime('%Y-%m-%d') }}</td>
-                    <td class="fw-bold">{{ cashup.staff.name }}</td>
-                    <td class="text-end">{{ cashup.turnover|money }}</td>
-                    <td class="text-end">{{ cashup.cash_total|money }}</td>
-                    <td class="text-end">{{ cashup.credit_card_total|money }}</td>
-                    <td class="text-end">{{ (cashup.credit_sale or 0)|money }}</td>
-                    <td class="text-end {% if cashup.tip_amount < 0 %}text-danger fw-bold{% endif %}">{{ cashup.tip_amount|money }}</td>
-                    {% for rule in tip_rules %}
-                    <td class="text-end">{{ outs.get(rule.key, 0)|money }}</td>
-                    {% endfor %}
-                    <td>{{ cashup.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            <tfoot>
-                <tr>
-                    <th colspan="2">Totals</th>
-                    <th>{{ total_turnover|money }}</th>
-                    <th>{{ total_cash|money }}</th>
-                    <th>{{ total_credit_card|money }}</th>
-                    <th>{{ total_credit_sale|money }}</th>
-                    <th>{{ total_tips|money }}</th>
-                    {% for rule in tip_rules %}
-                    <th>{{ total_tip_outs.get(rule.key, 0)|money }}</th>
-                    {% endfor %}
-                    <th></th>
-                </tr>
-            </tfoot>
-        </table>
-    </div>
-    {% else %}
-    <p class="text-muted mb-0">No submitted cash-ups for this date.</p>
-    {% endif %}
+    {% include "cashup/_history_tables.html" %}
 </div>
 {% endblock %}
 
@@ -1068,7 +1113,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     addRowBtn.addEventListener('click', function() {
-        const tipOutCells = (TIP_SETTINGS.tip_rules || []).map((rule) => `
+        const tipRules = TIP_SETTINGS.tip_rules || [];
+        const tipOutCells = tipRules.map((rule) => `
             <td>
                 <input type="text"
                        class="form-control form-control-sm tip-out-amount"
@@ -1078,6 +1124,16 @@ document.addEventListener('DOMContentLoaded', function() {
                        value="${formatMoney(0)}">
             </td>
         `).join('');
+        const tipCell = tipRules.length ? `
+            <td>
+                <input type="text"
+                       class="form-control form-control-sm tip-amount"
+                       name="tip_${rowCount}"
+                       readonly
+                       value="${formatMoney(0)}">
+            </td>
+            ${tipOutCells}
+        ` : '';
 
         const newRow = document.createElement('tr');
         newRow.className = 'cashup-row';
@@ -1102,15 +1158,38 @@ document.addEventListener('DOMContentLoaded', function() {
             </td>
             <td>
                 <div class="money-input">
-                    <span class="currency-prefix">${TIP_SETTINGS.currency_symbol || ''}</span>
-                    <input type="number" 
-                           class="form-control form-control-sm numeric-input cash-input" 
-                           name="cash_${rowCount}" 
-                           step="0.01" 
-                           min="0" 
+                    <span class="currency-prefix">SCR</span>
+                    <input type="number"
+                           class="form-control form-control-sm numeric-input cash-scr-input"
+                           name="cash_scr_${rowCount}"
+                           step="0.01"
+                           min="0"
                            value="0">
                 </div>
             </td>
+            <td>
+                <div class="money-input">
+                    <span class="currency-prefix">$</span>
+                    <input type="number"
+                           class="form-control form-control-sm numeric-input cash-usd-input"
+                           name="cash_usd_${rowCount}"
+                           step="0.01"
+                           min="0"
+                           value="0">
+                </div>
+            </td>
+            <td>
+                <div class="money-input">
+                    <span class="currency-prefix">€</span>
+                    <input type="number"
+                           class="form-control form-control-sm numeric-input cash-eur-input"
+                           name="cash_eur_${rowCount}"
+                           step="0.01"
+                           min="0"
+                           value="0">
+                </div>
+            </td>
+            <td class="cash-total">${formatMoney(0)}</td>
             <td>
                 <div class="money-input">
                     <span class="currency-prefix">${TIP_SETTINGS.currency_symbol || ''}</span>
@@ -1133,14 +1212,7 @@ document.addEventListener('DOMContentLoaded', function() {
                            value="0">
                 </div>
             </td>
-            <td>
-                <input type="text" 
-                       class="form-control form-control-sm tip-amount" 
-                       name="tip_${rowCount}" 
-                       readonly 
-                       value="${formatMoney(0)}">
-            </td>
-            ${tipOutCells}
+            ${tipCell}
             <td>
                 <button type="button" class="btn btn-sm btn-outline-dark remove-row">Remove</button>
             </td>
@@ -1281,12 +1353,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function updateNetTurnover() {
-        const turnover = parseMoney(document.getElementById('field_2')?.value);
+        const cash = parseMoney(document.getElementById('total_cash')?.value);
+        const creditCard = parseMoney(document.getElementById('total_cc')?.value);
         const creditSale = parseMoney(document.getElementById('total_credit_sale')?.value);
         const netInput = document.getElementById('total_net_turnover');
         if (netInput) {
-            netInput.value = formatMoney(turnover - creditSale);
+            netInput.value = formatMoney(cash + creditCard + creditSale);
         }
+    }
+
+    function rowCashTotal(row) {
+        const scr = parseFloat(row.querySelector('.cash-scr-input')?.value) || 0;
+        const usd = parseFloat(row.querySelector('.cash-usd-input')?.value) || 0;
+        const eur = parseFloat(row.querySelector('.cash-eur-input')?.value) || 0;
+        const usdRate = Number(TIP_SETTINGS.usd_to_scr) || 13;
+        const eurRate = Number(TIP_SETTINGS.eur_to_scr) || 14;
+        return Math.round((scr + usd * usdRate + eur * eurRate) * 100) / 100;
+    }
+
+    function updateRowCash(row) {
+        const total = rowCashTotal(row);
+        const cell = row.querySelector('.cash-total');
+        if (cell) cell.textContent = formatMoney(total);
+        return total;
     }
 
     function calculateTotalCash() {
@@ -1294,10 +1383,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let formTotal = 0;
         
         rows.forEach((row) => {
-            const input = row.querySelector('.cash-input');
-            if (input && input.value) {
-                formTotal += parseFloat(input.value) || 0;
-            }
+            formTotal += rowCashTotal(row);
         });
         
         const totalInput = document.getElementById('total_cash');
@@ -1316,6 +1402,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (tendersInput) {
             tendersInput.value = formatMoney(cash + cc);
         }
+        updateNetTurnover();
     }
     
     function calculateTotalTipOuts() {
@@ -1373,8 +1460,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const turnover = row.querySelector('.turnover-input');
             if (turnover) turnover.name = `turnover_${index}`;
 
-            const cashInput = row.querySelector('.cash-input');
-            if (cashInput) cashInput.name = `cash_${index}`;
+            const cashScr = row.querySelector('.cash-scr-input');
+            if (cashScr) cashScr.name = `cash_scr_${index}`;
+
+            const cashUsd = row.querySelector('.cash-usd-input');
+            if (cashUsd) cashUsd.name = `cash_usd_${index}`;
+
+            const cashEur = row.querySelector('.cash-eur-input');
+            if (cashEur) cashEur.name = `cash_eur_${index}`;
 
             const creditCard = row.querySelector('.creditcard-input');
             if (creditCard) creditCard.name = `credit_card_${index}`;
@@ -1524,13 +1617,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Credit sale is subtracted from turnover before tip calc
     function calculateTip(row) {
         const turnoverInput = row.querySelector('.turnover-input');
-        const cashInput = row.querySelector('.cash-input');
         const creditCardInput = row.querySelector('.creditcard-input');
         const creditSaleInput = row.querySelector('.creditsale-input');
         const tipInput = row.querySelector('.tip-amount');
 
+        updateRowCash(row);
         const turnover = parseFloat(turnoverInput.value) || 0;
-        const cash = parseFloat(cashInput ? cashInput.value : 0) || 0;
+        const cash = rowCashTotal(row);
         const creditCard = parseFloat(creditCardInput.value) || 0;
         const creditSale = parseFloat(creditSaleInput ? creditSaleInput.value : 0) || 0;
         const effectiveTurnover = turnover - creditSale;
@@ -1551,16 +1644,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         const tip = Math.round((grossTip - totalOuts) * 100) / 100;
-        tipInput.value = formatMoney(tip);
+        if (tipInput) {
+            tipInput.value = formatMoney(tip);
+            tipInput.classList.remove('tip-negative');
+            if (tip < 0) {
+                tipInput.classList.add('tip-negative');
+            }
+        }
 
         turnoverInput.classList.remove('is-invalid');
-        if (cashInput) cashInput.classList.remove('is-invalid');
+        row.querySelectorAll('.cash-scr-input, .cash-usd-input, .cash-eur-input').forEach((input) => {
+            input.classList.remove('is-invalid');
+        });
         creditCardInput.classList.remove('is-invalid');
         if (creditSaleInput) creditSaleInput.classList.remove('is-invalid');
-        tipInput.classList.remove('tip-negative');
 
-        if (tip < 0) {
-            tipInput.classList.add('tip-negative');
+        if (tipInput && tip < 0) {
             return false;
         }
 
@@ -1569,7 +1668,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function attachRowListeners(row) {
         const turnoverInput = row.querySelector('.turnover-input');
-        const cashInput = row.querySelector('.cash-input');
         const creditCardInput = row.querySelector('.creditcard-input');
         const creditSaleInput = row.querySelector('.creditsale-input');
         const staffSelect = row.querySelector('.staff-select');
@@ -1580,13 +1678,13 @@ document.addEventListener('DOMContentLoaded', function() {
             calculateTotalTurnover();
         });
 
-        if (cashInput) {
-            cashInput.addEventListener('input', function() {
+        row.querySelectorAll('.cash-scr-input, .cash-usd-input, .cash-eur-input').forEach((input) => {
+            input.addEventListener('input', function() {
                 calculateTip(row);
                 calculateTotalTipOuts();
                 calculateTotalCash();
             });
-        }
+        });
 
         creditCardInput.addEventListener('input', function() {
             calculateTip(row);

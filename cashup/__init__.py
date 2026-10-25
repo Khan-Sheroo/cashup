@@ -1,3 +1,5 @@
+import json
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import inspect, text
@@ -24,6 +26,27 @@ def _ensure_schema(app):
                         'ALTER TABLE cashup ADD COLUMN credit_sale NUMERIC(10, 2) '
                         'DEFAULT 0 NOT NULL'
                     ))
+            if 'cash_scr' not in columns:
+                with db.engine.begin() as conn:
+                    for name in ('cash_scr', 'cash_usd', 'cash_eur'):
+                        conn.execute(text(
+                            f'ALTER TABLE cashup ADD COLUMN {name} NUMERIC(10, 2) '
+                            'DEFAULT 0 NOT NULL'
+                        ))
+                    conn.execute(text(
+                        'UPDATE cashup SET cash_scr = cash_total '
+                        'WHERE COALESCE(cash_scr, 0) = 0 '
+                        'AND COALESCE(cash_usd, 0) = 0 '
+                        'AND COALESCE(cash_eur, 0) = 0 '
+                        'AND COALESCE(cash_total, 0) != 0'
+                    ))
+                _disable_tip_columns()
+
+        if 'daily_summary' in tables:
+            columns = {c['name'] for c in inspector.get_columns('daily_summary')}
+            if 'manager_note' not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text('ALTER TABLE daily_summary ADD COLUMN manager_note TEXT'))
 
         if 'staff_document' in tables:
             columns = {c['name'] for c in inspector.get_columns('staff_document')}
@@ -109,6 +132,34 @@ def _ensure_schema(app):
             db.session.commit()
 
 
+def _disable_tip_columns():
+    """Turn off tips, CC commission, and pool tips. Settings can turn them back on."""
+    with db.engine.begin() as conn:
+        row = conn.execute(text(
+            'SELECT id, tip_rules_json FROM app_settings LIMIT 1'
+        )).fetchone()
+        if not row or not row[1]:
+            return
+        try:
+            rules = json.loads(row[1])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if not isinstance(rules, list):
+            return
+        changed = False
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            if rule.get('key') in ('cc_commission', 'pool') and rule.get('enabled'):
+                rule['enabled'] = False
+                changed = True
+        if changed:
+            conn.execute(
+                text('UPDATE app_settings SET tip_rules_json = :rules WHERE id = :id'),
+                {'rules': json.dumps(rules), 'id': row[0]},
+            )
+
+
 def create_app(config_name='development'):
     """Application factory pattern"""
     app = Flask(__name__)
@@ -151,11 +202,14 @@ def create_app(config_name='development'):
     @app.context_processor
     def inject_app_settings():
         from cashup.models import AppSettings
+        from cashup.settings_util import EUR_TO_SCR, USD_TO_SCR
         settings = AppSettings.get_or_create()
         return {
             'app_settings': settings,
             'currency_symbol': settings.currency_symbol,
             'enabled_tip_rules': settings.enabled_tip_rules(),
+            'usd_to_scr': USD_TO_SCR,
+            'eur_to_scr': EUR_TO_SCR,
         }
 
     @app.template_filter('money')

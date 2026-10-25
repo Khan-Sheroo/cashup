@@ -26,6 +26,7 @@
             {% set ns.open = True %}
         {% endif %}
         <option value="{{ item.id }}" data-unit="{{ item.unit }}" data-pack="{{ item.pack_size|float }}"
+                {% if item.category in spirit_categories %}data-spirit="1"{% endif %}
                 {% if item.id == selected_id %}selected{% endif %}>{{ item.name }}</option>
     {% endfor %}
     {% if ns.open %}</optgroup>{% endif %}
@@ -197,6 +198,21 @@
         return src[1] / dst[1];
     }
 
+    // Bottles per invoice quantity for spirits: "12x750ml", "Case of 6", "6PK" (mirrors case_bottles)
+    const CASE_SIZES = {{ spirit_case_sizes|tojson }};
+    const CASE_PATTERNS = [
+        /\b(\d{1,2})\s*[x×*]\s*\d+(\.\d+)?\s*(ml|cl|l|lt|ltr)\b/i,
+        /\b(?:case|cs|ctn|carton|pack|pk)\s*(?:of\s*)?[x×]?\s*(\d{1,2})\b/i,
+        /\b(\d{1,2})\s*(?:pk|pack|bot(?:tle)?s?|btl?s?)\b/i
+    ];
+    function caseBottles(desc) {
+        for (const pattern of CASE_PATTERNS) {
+            const match = (desc || '').match(pattern);
+            if (match && CASE_SIZES.includes(parseInt(match[1], 10))) return parseInt(match[1], 10);
+        }
+        return 1;
+    }
+
     function fmt(n) { return (Math.round(n * 100) / 100).toLocaleString(); }
 
     function recalcTotal() {
@@ -230,7 +246,11 @@
                 units.readOnly = false;
                 units.title = qtyUnit.value !== 'unit' && itemUnit
                     ? itemUnit + ' per ' + qtyUnit.value + ' (cannot convert automatically)' : '';
-                if (!units.value && opt && opt.value && qtyUnit.value === 'unit') units.value = opt.dataset.pack || 1;
+                if (!units.value && opt && opt.value && qtyUnit.value === 'unit') {
+                    const pack = parseFloat(opt.dataset.pack || '1') || 1;
+                    const desc = row.querySelector('.desc-cell input[type="text"]').value;
+                    units.value = opt.dataset.spirit ? pack * caseBottles(desc) : pack;
+                }
             }
         }
 

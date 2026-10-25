@@ -7,10 +7,26 @@
     function bind(row) {
         const select = row.querySelector('.line-item');
         const unitCell = row.querySelector('.line-unit');
+        const unitSelect = row.querySelector('.line-unit-select');
         const stockCell = row.querySelector('.line-stock');
+        // Count unit (e.g. Bot) or the recipe unit it is made of (e.g. ml)
+        function fillUnitChoices(opt) {
+            unitSelect.innerHTML = '';
+            const choices = [['count', opt && opt.value ? (opt.dataset.unit || '') : '—']];
+            if (opt && opt.value && parseFloat(opt.dataset.factor || '1') !== 1) {
+                choices.push(['base', opt.dataset.baseUnit]);
+            }
+            choices.forEach(function (choice) {
+                const option = document.createElement('option');
+                option.value = choice[0];
+                option.textContent = choice[1];
+                unitSelect.appendChild(option);
+            });
+        }
         function update() {
             const opt = select.options[select.selectedIndex];
-            unitCell.textContent = opt && opt.value ? (opt.dataset.unit || '') : '';
+            if (unitSelect) fillUnitChoices(opt);
+            else unitCell.textContent = opt && opt.value ? (opt.dataset.unit || '') : '';
             if (stockCell) stockCell.textContent = opt && opt.value ? (opt.dataset.stock || '0') : '';
         }
         select.addEventListener('change', update);

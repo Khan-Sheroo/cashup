@@ -12,12 +12,21 @@
                         {% set ns.open = True %}
                     {% endif %}
                     <option value="{{ item.id }}" data-unit="{{ item.count_unit_label() }}"
+                            data-base-unit="{{ item.unit }}" data-factor="{{ item.effective_count_factor()|float }}"
                             {% if store_stock is defined %}data-stock="{{ item.to_count_units(store_stock.get(item.id, 0))|qty }}"{% endif %}>{{ item.name }}</option>
                 {% endfor %}
                 {% if ns.open %}</optgroup>{% endif %}
             </select>
         </td>
+        {% if unit_choice is defined and unit_choice %}
+        <td class="col-center">
+            <select name="line_unit" class="line-unit-select">
+                <option value="count">—</option>
+            </select>
+        </td>
+        {% else %}
         <td class="col-center line-unit"></td>
+        {% endif %}
         {% if store_stock is defined %}<td class="col-right line-stock muted"></td>{% endif %}
         <td><input type="number" name="line_quantity" class="numeric-input" step="any"></td>
         <td class="col-center"><button type="button" class="btn btn-sm btn-outline-danger remove-line">&times;</button></td>

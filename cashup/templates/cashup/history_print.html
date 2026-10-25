@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submitted History {{ history.start.isoformat() }} to {{ history.end.isoformat() }}</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #e9ecef;
+            color: #111;
+            font-family: Calibri, "Segoe UI", Arial, sans-serif;
+        }
+        .float-controls {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 1000;
+            display: flex;
+            gap: 0.4rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.4rem 0.85rem;
+            border: 1px solid #333;
+            background: #fff;
+            color: #111;
+            text-decoration: none;
+            font-size: 0.85rem;
+            cursor: pointer;
+            font-family: Calibri, "Segoe UI", Arial, sans-serif;
+        }
+        .btn-primary {
+            background: #1F4E79;
+            color: #fff;
+            border-color: #1F4E79;
+        }
+        .print-sheet {
+            max-width: 297mm;
+            margin: 1rem auto 2rem;
+            background: #fff;
+            padding: 10mm;
+            box-shadow: 0 0 0 1px #ccc;
+        }
+        .sheet-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin: 0;
+        }
+        .sheet-meta {
+            color: #555;
+            font-size: 12px;
+            margin: 0 0 8px;
+        }
+        table.xl {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        table.xl th,
+        table.xl td {
+            border: 1px solid #BFBFBF;
+            padding: 3px 6px;
+            vertical-align: middle;
+        }
+        table.xl thead th {
+            background: #1F4E79;
+            color: #fff;
+            font-weight: 700;
+            text-align: center;
+            border-color: #1F4E79;
+        }
+        table.xl .label {
+            width: 22%;
+            text-align: left;
+        }
+        table.xl .num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            font-family: Consolas, "Segoe UI", Calibri, sans-serif;
+        }
+        table.xl .day-band th {
+            background: #D6DCE4;
+            color: #111;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 700;
+            border-color: #8EA9DB;
+            padding: 4px 6px;
+        }
+        table.xl .total-row th,
+        table.xl .total-row td {
+            background: #FFF2CC;
+            font-weight: 700;
+        }
+        table.xl .dept td.name {
+            padding-left: 16px;
+        }
+        table.xl .dept.alt td {
+            background: #F7F7F7;
+        }
+        table.xl .range-total th,
+        table.xl .range-total td {
+            background: #1F4E79;
+            color: #fff;
+            font-weight: 700;
+            border-color: #1F4E79;
+        }
+        table.xl .notes-gap td {
+            vertical-align: middle;
+            background: #fff;
+            padding: 3px 6px;
+            font-size: 11px;
+            white-space: pre-wrap;
+        }
+        table.xl tbody.day-block {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .empty-note {
+            color: #555;
+            font-size: 12px;
+        }
+        @media print {
+            @page { size: A4 landscape; margin: 8mm; }
+            html, body { background: #fff; }
+            .no-print, .float-controls { display: none !important; }
+            .print-sheet {
+                max-width: none;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+            }
+            * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="float-controls no-print">
+        <a class="btn" href="{{ url_for('cashup.new_cashup', date=history.end.isoformat(), hist_start=history.start.isoformat(), hist_end=history.end.isoformat()) }}">Back</a>
+        <button type="button" class="btn btn-primary" id="printBtn">Print / Save PDF</button>
+    </div>
+    <div class="print-sheet">
+        <p class="sheet-title">Submitted History</p>
+        <p class="sheet-meta">{{ history.start.strftime('%d %b %Y') }} – {{ history.end.strftime('%d %b %Y') }}. Figures in SCR except US and Euro. Net turnover is cash + credit card + credit sale.</p>
+        {% if history.days %}
+        <table class="xl">
+            <thead>
+                <tr>
+                    <th class="label"></th>
+                    <th>Turnover</th>
+                    <th>SCR</th>
+                    <th>US $</th>
+                    <th>Euro €</th>
+                    <th>Cash</th>
+                    <th>Credit Card</th>
+                    <th>Credit Sale</th>
+                    <th>Net Turnover</th>
+                </tr>
+            </thead>
+            {% for day in history.days %}
+            <tbody class="day-block">
+                <tr class="day-band">
+                    <th colspan="9">{{ day.date.strftime('%A %d %b %Y') }}</th>
+                </tr>
+                <tr class="total-row">
+                    <th class="label">Totals</th>
+                    <td class="num">{{ "{:,.2f}".format(day.figures.turnover) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(day.figures.cash_scr) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(day.figures.cash_usd) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(day.figures.cash_eur) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(day.figures.cash) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(day.figures.credit_card) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(day.figures.credit_sale) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(day.figures.net) }}</td>
+                </tr>
+                {% for dept in day.departments %}
+                <tr class="dept{% if loop.index is even %} alt{% endif %}">
+                    <td class="name">{{ dept.name }}</td>
+                    <td class="num">{{ "{:,.2f}".format(dept.figures.turnover) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(dept.figures.cash_scr) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(dept.figures.cash_usd) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(dept.figures.cash_eur) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(dept.figures.cash) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(dept.figures.credit_card) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(dept.figures.credit_sale) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(dept.figures.net) }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="notes-gap">
+                    <td colspan="9">Notes: "{{ day.note }}"</td>
+                </tr>
+            </tbody>
+            {% endfor %}
+            {% if history.days|length > 1 %}
+            <tbody>
+                <tr class="range-total">
+                    <th class="label">Range total</th>
+                    <td class="num">{{ "{:,.2f}".format(history.totals.turnover) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(history.totals.cash_scr) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(history.totals.cash_usd) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(history.totals.cash_eur) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(history.totals.cash) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(history.totals.credit_card) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(history.totals.credit_sale) }}</td>
+                    <td class="num">{{ "{:,.2f}".format(history.totals.net) }}</td>
+                </tr>
+            </tbody>
+            {% endif %}
+        </table>
+        {% else %}
+        <p class="empty-note">No submitted cash-ups in this date range.</p>
+        {% endif %}
+    </div>
+    <script>
+        document.getElementById('printBtn').addEventListener('click', function () {
+            window.print();
+        });
+        window.addEventListener('load', function () {
+            setTimeout(function () { window.print(); }, 150);
+        });
+    </script>
+</body>
+</html>

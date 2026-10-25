@@ -236,9 +236,26 @@
         display.textContent = currencySymbol + (cost / size).toFixed(4);
     }
 
+    // Spirits are bought as 750 ml bottles so shots can be measured in ml
+    const categoryInput = document.querySelector('input[name="category"]');
+    const countUnit = document.getElementById('count-unit');
+    const countFactor = document.getElementById('count-factor');
+    const spiritCategories = {{ spirit_categories|map('lower')|list|tojson }};
+    const spiritBottleMl = {{ spirit_bottle_ml|float }};
+    function applySpiritDefaults() {
+        if (!spiritCategories.includes(categoryInput.value.trim().toLowerCase())) return;
+        if (unitSelect.value !== 'each' || parseFloat(packSize.value) !== 1) return;
+        unitSelect.value = 'ml';
+        packSize.value = spiritBottleMl;
+        if (!countUnit.value) countUnit.value = 'Bot';
+        if (!countFactor.value) countFactor.value = spiritBottleMl;
+        recalc();
+    }
+
     packSize.addEventListener('input', recalc);
     costPrice.addEventListener('input', recalc);
     unitSelect.addEventListener('change', recalc);
+    categoryInput.addEventListener('change', applySpiritDefaults);
     recalc();
 })();
 </script>

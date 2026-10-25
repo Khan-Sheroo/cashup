@@ -1,6 +1,7 @@
 """Helpers for recipe costing and gross margin."""
 from __future__ import annotations
 
+import re
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
@@ -58,6 +59,32 @@ UNIT_DIMENSIONS = {
     'tbsp': ('volume', Decimal('15')),
     'cup': ('volume', Decimal('250')),
 }
+
+
+# Spirits are stocked as 750 ml bottles so shots are measured in ml; a case is N bottles.
+SPIRIT_CATEGORIES = ('Spirits', 'Liqueurs')
+SPIRIT_BOTTLE_ML = Decimal('750')
+SPIRIT_CASE_SIZES = (6, 12)
+
+_CASE_PATTERNS = (
+    re.compile(r'\b(\d{1,2})\s*[x×*]\s*\d+(\.\d+)?\s*(ml|cl|l|lt|ltr)\b', re.IGNORECASE),
+    re.compile(r'\b(?:case|cs|ctn|carton|pack|pk)\s*(?:of\s*)?[x×]?\s*(\d{1,2})\b', re.IGNORECASE),
+    re.compile(r'\b(\d{1,2})\s*(?:pk|pack|bot(?:tle)?s?|btl?s?)\b', re.IGNORECASE),
+)
+
+
+def is_spirit_category(category: str | None) -> bool:
+    return (category or '').strip().lower() in {c.lower() for c in SPIRIT_CATEGORIES}
+
+
+def case_bottles(description: str | None) -> int:
+    """Bottles per invoice quantity read from text like '12x750ml', 'Case of 6', '6PK'; 1 if none."""
+    text = description or ''
+    for pattern in _CASE_PATTERNS:
+        match = pattern.search(text)
+        if match and int(match.group(1)) in SPIRIT_CASE_SIZES:
+            return int(match.group(1))
+    return 1
 
 
 def unit_conversion(from_unit: str | None, to_unit: str | None) -> Decimal | None:
