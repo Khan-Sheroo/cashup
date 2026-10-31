@@ -47,6 +47,7 @@
                 <tr>
                     <th>Department</th>
                     {{ figure_heads() }}
+                    {% if show_history_delete %}<th></th>{% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -54,6 +55,19 @@
                 <tr>
                     <td>{{ dept.name }}</td>
                     {{ figure_cells(dept.figures) }}
+                    {% if show_history_delete %}
+                    <td>
+                        <form method="POST" action="{{ url_for('cashup.delete_cashup') }}"
+                              onsubmit="return confirm('Delete the {{ dept.name }} cash-up for {{ day.date.strftime('%d %b %Y') }}?');">
+                            {% for cashup_id in dept.cashup_ids %}
+                            <input type="hidden" name="cashup_id" value="{{ cashup_id }}">
+                            {% endfor %}
+                            <input type="hidden" name="hist_start" value="{{ history.start.isoformat() }}">
+                            <input type="hidden" name="hist_end" value="{{ history.end.isoformat() }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" style="border-radius: 0;">Delete</button>
+                        </form>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>
@@ -61,6 +75,7 @@
                 <tr>
                     <th>Total</th>
                     {{ figure_cells(day.figures) }}
+                    {% if show_history_delete %}<th></th>{% endif %}
                 </tr>
             </tfoot>
         </table>

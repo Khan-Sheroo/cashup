@@ -48,6 +48,14 @@ def _ensure_schema(app):
                 with db.engine.begin() as conn:
                     conn.execute(text('ALTER TABLE daily_summary ADD COLUMN manager_note TEXT'))
 
+        if 'waiter_tip' in tables:
+            columns = {c['name'] for c in inspector.get_columns('waiter_tip')}
+            if 'manual' not in columns:
+                with db.engine.begin() as conn:
+                    conn.execute(text(
+                        'ALTER TABLE waiter_tip ADD COLUMN manual BOOLEAN DEFAULT 0 NOT NULL'
+                    ))
+
         if 'staff_document' in tables:
             columns = {c['name'] for c in inspector.get_columns('staff_document')}
             if 'folder_id' not in columns:

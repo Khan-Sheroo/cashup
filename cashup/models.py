@@ -198,6 +198,8 @@ class WaiterTip(db.Model):
     tip_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     # Legacy column retained for existing databases; no longer used
     box_office_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    # Typed on the tips sheet. Cash-up saves do not overwrite these.
+    manual = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     

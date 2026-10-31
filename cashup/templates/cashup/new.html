@@ -12,8 +12,34 @@
     }
     .work-sheet h1 {
         font-size: 1.5rem;
-        margin: 0 0 0.25rem;
+        margin: 0;
     }
+    .sheet-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    .sheet-heading .btn { border-radius: 0; }
+    .trend-chart { position: relative; }
+    .trend-chart svg { width: 100%; height: auto; display: block; }
+    .trend-chart .empty-note { color: #666; margin: 1rem 0; }
+    .trend-tip {
+        position: absolute;
+        z-index: 3;
+        display: none;
+        pointer-events: none;
+        background: #111;
+        color: #fff;
+        padding: 0.35rem 0.55rem;
+        font-size: 0.8rem;
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+    .trend-tip.is-on { display: block; }
+    .trend-tip-amount { font-weight: 700; }
     .work-sheet .sheet-meta {
         color: #555;
         margin-bottom: 1rem;
@@ -541,11 +567,15 @@
 </div>
 <form method="POST" id="cashupForm">
 <div class="work-sheet">
-    <h1>Daily Cash-Up Sheet</h1>
+    <div class="sheet-heading">
+        <h1>Daily Cash-Up Sheet</h1>
+        <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#turnoverTrendModal">Turnover trend</button>
+    </div>
     <div class="sheet-meta">
         <div class="d-flex align-items-center gap-2">
             <label for="entry_date">Date</label>
             <input type="date" id="entry_date" name="entry_date" required value="{{ filter_date }}">
+            <input type="hidden" name="sheet_date" value="{{ filter_date }}">
         </div>
         <small id="autosaveStatus" class="text-muted">Changes save automatically</small>
     </div>
@@ -785,6 +815,9 @@
         <button type="submit" class="btn btn-dark" name="action" value="save">Save Draft</button>
         <button type="submit" class="btn btn-dark" name="action" value="submit"
                 formaction="{{ url_for('cashup.submit_cashup') }}" id="submitCashupBtn">Submit Cashup</button>
+        <button type="submit" class="btn btn-outline-danger" formnovalidate
+                formaction="{{ url_for('cashup.delete_day_cashup') }}"
+                onclick="return confirm('Delete the cash-up for this date? Staff rows, card batches, and the manager note will be removed.');">Delete Cash-Up</button>
         <a href="{{ url_for('cashup.print_cashup', date=filter_date) }}" class="btn btn-outline-dark" id="printSheetBtn" target="_blank">Print / Save PDF</a>
         <a href="{{ url_for('cashup.waiter_slips') }}" class="btn btn-outline-dark" target="_blank">Waiter Slips (4×A6)</a>
     </div>
@@ -952,6 +985,26 @@
 
     {% include "cashup/_history_tables.html" %}
 </div>
+<div class="modal fade" id="turnoverTrendModal" tabindex="-1" aria-labelledby="turnoverTrendTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 0; border: 1px solid #333;">
+            <div class="modal-header" style="border-bottom: 1px solid #333;">
+                <h5 class="modal-title" id="turnoverTrendTitle">Turnover trend</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                    <label for="trendStaff" class="mb-0 fw-bold">Staff</label>
+                    <select id="trendStaff" class="form-select form-select-sm" style="width: auto; border-radius: 0; border-color: #333;">
+                        <option value="">Everyone</option>
+                    </select>
+                    <span id="trendStatus" class="text-muted small">Last 30 days</span>
+                </div>
+                <div id="trendChart" class="trend-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -1000,6 +1053,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (entryDate.value) {
         localStorage.setItem('cashupLastDate', entryDate.value);
     }
+    // Saves belong to the date this sheet was opened on. Changing the date
+    // navigates away, but the inputs still hold this day's figures until then.
+    const sheetDate = entryDate.value;
 
     const savedTotalCC = parseFloat(totalCCInput.getAttribute('data-saved-total')) || 0;
     const createStaffOption = `<option value="__new__">+ Create new user...</option>`;
@@ -1522,6 +1578,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         try {
             const formData = new FormData(form);
+            if (sheetDate) formData.set('entry_date', sheetDate);
             const response = await fetch('{{ url_for("cashup.autosave_cashup") }}', {
                 method: 'POST',
                 body: formData,
@@ -1574,6 +1631,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!form || !entryDate.value) return;
         reindexRowFields();
         const formData = new FormData(form);
+        if (sheetDate) formData.set('entry_date', sheetDate);
         if (navigator.sendBeacon) {
             navigator.sendBeacon('{{ url_for("cashup.autosave_cashup") }}', formData);
         }
@@ -2437,6 +2495,173 @@ document.addEventListener('DOMContentLoaded', function() {
             if (previewBody) previewBody.innerHTML = '';
         });
     }
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modalEl = document.getElementById('turnoverTrendModal');
+    const staffSelect = document.getElementById('trendStaff');
+    const statusEl = document.getElementById('trendStatus');
+    const chartEl = document.getElementById('trendChart');
+    if (!modalEl || !staffSelect || !chartEl) return;
+
+    const symbol = (typeof TIP_SETTINGS !== 'undefined' && TIP_SETTINGS.currency_symbol) || '';
+
+    function moneyLabel(value) {
+        const n = Number(value) || 0;
+        return symbol + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    function drawTrend(points) {
+        if (!points.length) {
+            chartEl.innerHTML = '<p class="empty-note">No turnover in the last 30 days.</p>';
+            return;
+        }
+        const values = points.map(p => Number(p.turnover) || 0);
+        const peak = Math.max(...values, 0);
+        if (peak <= 0) {
+            chartEl.innerHTML = '<p class="empty-note">No submitted turnover in the last 30 days.</p>';
+            return;
+        }
+        const max = peak * 1.08;
+        const w = 760;
+        const h = 300;
+        const pad = { l: 72, r: 16, t: 18, b: 42 };
+        const innerW = w - pad.l - pad.r;
+        const innerH = h - pad.t - pad.b;
+        const xAt = i => pad.l + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+        const yAt = v => pad.t + innerH - (v / max) * innerH;
+        const line = points.map((p, i) => `${i ? 'L' : 'M'}${xAt(i).toFixed(1)},${yAt(values[i]).toFixed(1)}`).join(' ');
+        const ticks = [0, 0.25, 0.5, 0.75, 1].map(step => {
+            const value = max * step;
+            const y = yAt(value);
+            return `<line x1="${pad.l}" y1="${y.toFixed(1)}" x2="${w - pad.r}" y2="${y.toFixed(1)}" stroke="#e5e5e5" stroke-width="1"></line>
+                <text x="${pad.l - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#555">${moneyLabel(value)}</text>`;
+        }).join('');
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const dayLabel = iso => {
+            const parts = iso.split('-');
+            return `${Number(parts[2])} ${months[Number(parts[1]) - 1]} ${parts[0]}`;
+        };
+        const labelEvery = points.length > 16 ? 5 : (points.length > 8 ? 2 : 1);
+        const labels = points.map((p, i) => {
+            if (i % labelEvery !== 0 && i !== points.length - 1) return '';
+            return `<text x="${xAt(i).toFixed(1)}" y="${h - 12}" text-anchor="middle" font-size="11" fill="#555">${dayLabel(p.date).replace(/ \d{4}$/, '')}</text>`;
+        }).join('');
+        const dots = points.map((p, i) => {
+            const cx = xAt(i).toFixed(1);
+            const cy = yAt(values[i]).toFixed(1);
+            return `<circle class="trend-dot" data-i="${i}" cx="${cx}" cy="${cy}" r="4.5" fill="#1F4E79"></circle>`;
+        }).join('');
+        chartEl.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Turnover line graph">
+            ${ticks}
+            <path d="${line}" fill="none" stroke="#1F4E79" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path>
+            ${dots}
+            ${labels}
+        </svg>
+        <div class="trend-tip" hidden>
+            <div class="trend-tip-date"></div>
+            <div class="trend-tip-amount"></div>
+        </div>`;
+
+        const svg = chartEl.querySelector('svg');
+        const tip = chartEl.querySelector('.trend-tip');
+        const tipDate = tip.querySelector('.trend-tip-date');
+        const tipAmount = tip.querySelector('.trend-tip-amount');
+        let active = -1;
+
+        function hideTip() {
+            active = -1;
+            tip.classList.remove('is-on');
+            tip.hidden = true;
+            chartEl.querySelectorAll('.trend-dot').forEach(dot => {
+                dot.setAttribute('r', '4.5');
+                dot.setAttribute('stroke', 'none');
+            });
+        }
+
+        function showTip(i) {
+            if (i === active) return;
+            active = i;
+            tipDate.textContent = dayLabel(points[i].date);
+            const amount = values[i].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            tipAmount.textContent = symbol + amount;
+            tip.hidden = false;
+            tip.classList.add('is-on');
+            chartEl.querySelectorAll('.trend-dot').forEach(dot => {
+                const on = Number(dot.dataset.i) === i;
+                dot.setAttribute('r', on ? '6.5' : '4.5');
+                dot.setAttribute('stroke', on ? '#111' : 'none');
+                dot.setAttribute('stroke-width', on ? '2' : '0');
+            });
+            const svgRect = svg.getBoundingClientRect();
+            const hostRect = chartEl.getBoundingClientRect();
+            const px = svgRect.left + (xAt(i) / w) * svgRect.width;
+            const py = svgRect.top + (yAt(values[i]) / h) * svgRect.height;
+            let left = px - hostRect.left - tip.offsetWidth / 2;
+            let top = py - hostRect.top - tip.offsetHeight - 10;
+            left = Math.max(4, Math.min(left, hostRect.width - tip.offsetWidth - 4));
+            if (top < 4) top = py - hostRect.top + 14;
+            tip.style.left = `${left}px`;
+            tip.style.top = `${top}px`;
+        }
+
+        svg.addEventListener('mousemove', event => {
+            const rect = svg.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+            const mx = ((event.clientX - rect.left) / rect.width) * w;
+            const my = ((event.clientY - rect.top) / rect.height) * h;
+            let best = -1;
+            let bestDist = 22;
+            points.forEach((p, i) => {
+                const dist = Math.hypot(mx - xAt(i), my - yAt(values[i]));
+                if (dist < bestDist) {
+                    best = i;
+                    bestDist = dist;
+                }
+            });
+            if (best < 0) hideTip();
+            else showTip(best);
+        });
+        svg.addEventListener('mouseleave', hideTip);
+    }
+
+    async function loadTrend() {
+        statusEl.textContent = 'Loading…';
+        const params = new URLSearchParams();
+        if (staffSelect.value) params.set('staff_id', staffSelect.value);
+        try {
+            const res = await fetch(`/cashup/turnover-trend?${params.toString()}`);
+            const data = await res.json();
+            if (!res.ok) {
+                statusEl.textContent = data.error || 'Could not load the trend';
+                chartEl.innerHTML = '';
+                return;
+            }
+            const current = staffSelect.value;
+            staffSelect.innerHTML = '';
+            const everyone = document.createElement('option');
+            everyone.value = '';
+            everyone.textContent = 'Everyone';
+            staffSelect.appendChild(everyone);
+            (data.staff || []).forEach(person => {
+                const option = document.createElement('option');
+                option.value = String(person.id);
+                option.textContent = person.name;
+                staffSelect.appendChild(option);
+            });
+            const stillListed = [...staffSelect.options].some(option => option.value === current);
+            staffSelect.value = stillListed ? current : '';
+            statusEl.textContent = 'Last 30 days. Staff with no turnover in the past 7 days are hidden.';
+            drawTrend(data.points || []);
+        } catch (err) {
+            statusEl.textContent = 'Could not load the trend';
+            chartEl.innerHTML = '';
+        }
+    }
+
+    modalEl.addEventListener('shown.bs.modal', loadTrend);
+    staffSelect.addEventListener('change', loadTrend);
 });
 </script>
 {% endblock %}

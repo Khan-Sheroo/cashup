@@ -37,7 +37,7 @@
     }
     .summary-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 0.5rem;
         margin-bottom: 0.5rem;
     }
@@ -116,13 +116,37 @@
         padding-top: 0.75rem;
         border-top: 2px solid #111;
     }
-    .sheet-actions .btn,
-    .sheet-meta .btn {
+    .sheet-table .tip-cell {
+        width: 100%;
+        min-width: 4.5rem;
+        border: 0;
+        background: transparent;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        padding: 0.15rem 0.2rem;
+    }
+    .sheet-table .tip-cell:focus {
+        outline: 1px solid #333;
+        background: #fff;
+    }
+    .add-person {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+    .add-person select {
+        width: auto;
+        min-width: 12rem;
         border-radius: 0;
-        border-width: 1px;
+        border-color: #333;
+    }
+    #tipSaveStatus {
+        font-size: 0.85rem;
     }
     @media (max-width: 992px) {
-        .summary-grid { grid-template-columns: 1fr; }
+        .summary-grid { grid-template-columns: repeat(2, 1fr); }
     }
 </style>
 {% endblock %}
@@ -149,73 +173,81 @@
         </div>
         <div class="summary-item">
             <div class="label">Waiters</div>
-            <div class="sheet-value">{{ tips_by_waiter|length }}</div>
+            <div class="sheet-value">{{ rows|length }}</div>
         </div>
         <div class="summary-item">
             <div class="label">Week Total Tips</div>
-            <div class="sheet-value">{{ week_total_tips|money }}</div>
+            <div class="sheet-value" id="weekSummaryTips">{{ week_total_tips|money }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">CC Levy (3%)</div>
+            <div class="sheet-value" id="weekSummaryLevy">{{ week_total_levy|money }}</div>
         </div>
     </div>
 
     <h2>Waiter Tips</h2>
+    <p class="sheet-meta" style="margin-top: -0.35rem;">Type a tip in any day. Total tips is that person's week minus a 3% card levy.</p>
+    {% if addable %}
+    <div class="add-person">
+        <label for="addPerson">Add a person</label>
+        <select id="addPerson" class="form-select form-select-sm">
+            <option value="">Choose someone...</option>
+            {% for staff in addable %}
+            <option value="{{ staff.id }}">{{ staff.name }}</option>
+            {% endfor %}
+        </select>
+        <span id="tipSaveStatus" class="text-muted"></span>
+    </div>
+    {% else %}
+    <p id="tipSaveStatus" class="text-muted"></p>
+    {% endif %}
     <div class="table-responsive">
-        <table class="sheet-table">
+        <table class="sheet-table" id="tipsTable">
             <thead>
                 <tr>
                     <th class="col-waiter">Waiter</th>
-                    {% for date in week_dates %}
+                    {% for day in week_dates %}
                     <th>
-                        <div>{{ date.strftime('%a') }}</div>
-                        <div style="font-weight: 400; font-size: 0.8rem;">{{ date.strftime('%m/%d') }}</div>
+                        <div>{{ day.strftime('%a') }}</div>
+                        <div style="font-weight: 400; font-size: 0.8rem;">{{ day.strftime('%m/%d') }}</div>
                     </th>
                     {% endfor %}
                     <th class="col-total">Total Tips</th>
+                    <th class="col-total">CC Levy</th>
                 </tr>
             </thead>
-            <tbody>
-                {% if tips_by_waiter %}
-                    {% for waiter_id, data in tips_by_waiter.items() %}
-                    <tr>
-                        <td class="name">{{ data.name }}</td>
-                        {% for date in week_dates %}
-                        <td class="num">
-                            {% if date in data.tips %}
-                                {{ data.tips[date].tip_amount|money }}
-                            {% else %}
-                                <span class="empty">-</span>
-                            {% endif %}
-                        </td>
-                        {% endfor %}
-                        <td class="num row-total">{{ data.total_tips|money }}</td>
-                    </tr>
+            <tbody id="tipsBody">
+                {% for row in rows %}
+                <tr data-staff-id="{{ row.id }}">
+                    <td class="name">{{ row.name }}</td>
+                    {% for day in row.days %}
+                    <td class="num">
+                        <input type="number" class="tip-cell" step="0.01"
+                               data-staff-id="{{ row.id }}"
+                               data-date="{{ day.date.isoformat() }}"
+                               value="{% if day.amount %}{{ '%.2f'|format(day.amount) }}{% endif %}"
+                               aria-label="{{ row.name }} {{ day.date.strftime('%a %d %b') }}">
+                    </td>
                     {% endfor %}
+                    <td class="num row-total">{{ row.total|money }}</td>
+                    <td class="num row-levy">{{ row.levy|money }}</td>
+                </tr>
                 {% else %}
-                    <tr>
-                        <td colspan="{{ week_dates|length + 2 }}" class="empty" style="text-align: left; padding: 0.75rem;">
-                            No waiter tips for this week.
-                        </td>
-                    </tr>
-                {% endif %}
+                <tr id="tipsEmpty">
+                    <td colspan="{{ week_dates|length + 3 }}" class="empty" style="text-align: left; padding: 0.75rem;">
+                        No one on this sheet yet. Add a person, then type their tips.
+                    </td>
+                </tr>
+                {% endfor %}
             </tbody>
             <tfoot>
                 <tr>
                     <th>Week Totals</th>
-                    {% for date in week_dates %}
-                    <td class="num">
-                        {% set day_tips = [] %}
-                        {% for waiter_id, data in tips_by_waiter.items() %}
-                            {% if date in data.tips %}
-                                {% set _ = day_tips.append(data.tips[date].tip_amount) %}
-                            {% endif %}
-                        {% endfor %}
-                        {% if day_tips %}
-                            {{ day_tips|sum|money }}
-                        {% else %}
-                            <span class="empty">-</span>
-                        {% endif %}
-                    </td>
+                    {% for total in day_totals %}
+                    <td class="num day-total">{{ total|money }}</td>
                     {% endfor %}
-                    <td class="num">{{ week_total_tips|money }}</td>
+                    <td class="num" id="weekTotal">{{ week_total_tips|money }}</td>
+                    <td class="num" id="weekLevy">{{ week_total_levy|money }}</td>
                 </tr>
             </tfoot>
         </table>
@@ -225,4 +257,126 @@
         <a href="{{ url_for('cashup.new_cashup') }}" class="btn btn-outline-dark">Back to Cash-Up</a>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TIP_SYMBOL = {{ currency_symbol|tojson }};
+const WEEK_DATES = [{% for day in week_dates %}"{{ day.isoformat() }}"{% if not loop.last %}, {% endif %}{% endfor %}];
+const tipsBody = document.getElementById('tipsBody');
+const statusEl = document.getElementById('tipSaveStatus');
+
+function formatTip(value) {
+    const amount = Number(value) || 0;
+    const text = Math.abs(amount).toFixed(2);
+    return amount < 0 ? `-${TIP_SYMBOL}${text}` : `${TIP_SYMBOL}${text}`;
+}
+
+function cellAmount(input) {
+    const n = parseFloat(input.value);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function levySplit(gross) {
+    const levy = Math.round(gross * 0.03 * 100) / 100;
+    const net = Math.round((gross - levy) * 100) / 100;
+    return { net, levy };
+}
+
+function refreshTipTotals() {
+    const rows = tipsBody.querySelectorAll('tr[data-staff-id]');
+    const dayTotals = WEEK_DATES.map(() => 0);
+    let weekNet = 0;
+    let weekLevy = 0;
+    rows.forEach((row) => {
+        let gross = 0;
+        row.querySelectorAll('.tip-cell').forEach((input, index) => {
+            const amount = cellAmount(input);
+            gross += amount;
+            dayTotals[index] += amount;
+        });
+        const split = levySplit(gross);
+        weekNet += split.net;
+        weekLevy += split.levy;
+        const totalCell = row.querySelector('.row-total');
+        const levyCell = row.querySelector('.row-levy');
+        if (totalCell) totalCell.textContent = formatTip(split.net);
+        if (levyCell) levyCell.textContent = formatTip(split.levy);
+    });
+    document.querySelectorAll('.day-total').forEach((cell, index) => {
+        cell.textContent = formatTip(dayTotals[index] || 0);
+    });
+    const weekTotal = document.getElementById('weekTotal');
+    const weekLevyEl = document.getElementById('weekLevy');
+    if (weekTotal) weekTotal.textContent = formatTip(weekNet);
+    if (weekLevyEl) weekLevyEl.textContent = formatTip(weekLevy);
+    const summary = document.getElementById('weekSummaryTips');
+    const summaryLevy = document.getElementById('weekSummaryLevy');
+    if (summary) summary.textContent = formatTip(weekNet);
+    if (summaryLevy) summaryLevy.textContent = formatTip(weekLevy);
+}
+
+function setTipStatus(message, isError) {
+    if (!statusEl) return;
+    statusEl.textContent = message;
+    statusEl.classList.toggle('text-danger', !!isError);
+    statusEl.classList.toggle('text-muted', !isError);
+}
+
+async function saveTip(input) {
+    const body = new FormData();
+    body.set('staff_id', input.dataset.staffId);
+    body.set('date', input.dataset.date);
+    body.set('amount', input.value === '' ? '0' : input.value);
+    setTipStatus('Saving...');
+    try {
+        const response = await fetch('{{ url_for("cashup.save_tip") }}', { method: 'POST', body });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            setTipStatus(data.error || 'Could not save', true);
+            return;
+        }
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setTipStatus(`Saved at ${time}`);
+    } catch (err) {
+        setTipStatus('Could not save — check connection', true);
+    }
+}
+
+function bindTipInput(input) {
+    input.addEventListener('input', refreshTipTotals);
+    input.addEventListener('change', function () {
+        refreshTipTotals();
+        saveTip(input);
+    });
+}
+
+document.querySelectorAll('.tip-cell').forEach(bindTipInput);
+
+const addPerson = document.getElementById('addPerson');
+if (addPerson) {
+    addPerson.addEventListener('change', function () {
+        const staffId = addPerson.value;
+        if (!staffId) return;
+        const name = addPerson.options[addPerson.selectedIndex].text;
+        const empty = document.getElementById('tipsEmpty');
+        if (empty) empty.remove();
+        const row = document.createElement('tr');
+        row.dataset.staffId = staffId;
+        const cells = WEEK_DATES.map((day) => `
+            <td class="num">
+                <input type="number" class="tip-cell" step="0.01"
+                       data-staff-id="${staffId}" data-date="${day}"
+                       aria-label="${name} ${day}">
+            </td>`).join('');
+        row.innerHTML = `<td class="name"></td>${cells}<td class="num row-total">${formatTip(0)}</td><td class="num row-levy">${formatTip(0)}</td>`;
+        row.querySelector('.name').textContent = name;
+        tipsBody.appendChild(row);
+        row.querySelectorAll('.tip-cell').forEach(bindTipInput);
+        addPerson.remove(addPerson.selectedIndex);
+        addPerson.value = '';
+        row.querySelector('.tip-cell').focus();
+    });
+}
+</script>
 {% endblock %}
