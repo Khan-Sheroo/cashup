@@ -134,9 +134,13 @@ def _ensure_schema(app):
                         ))
 
         from cashup.models import DEFAULT_LOCATIONS, Location
-        if Location.query.count() == 0:
-            for order, (name, kind) in enumerate(DEFAULT_LOCATIONS):
+        existing = {loc.name for loc in Location.query.all()}
+        added = False
+        for order, (name, kind) in enumerate(DEFAULT_LOCATIONS):
+            if name not in existing:
                 db.session.add(Location(name=name, kind=kind, sort_order=order))
+                added = True
+        if added:
             db.session.commit()
 
 

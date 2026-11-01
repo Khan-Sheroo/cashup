@@ -492,6 +492,8 @@ DEFAULT_LOCATIONS = (
     ('Store Room', 'store'),
     ('Bar', 'outlet'),
     ('Kitchen', 'outlet'),
+    ('Peace Bar', 'outlet'),
+    ('Chill Grill', 'outlet'),
 )
 
 MOVEMENT_KINDS = {

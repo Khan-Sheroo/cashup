@@ -139,6 +139,22 @@ def stock():
     )
 
 
+@inventory_bp.route('/clear-stock', methods=['POST'])
+def clear_stock_levels():
+    """Remove counted stock quantities. Items, recipes, and invoices stay."""
+    backup = _backup_database()
+    n_moves = StockMovement.query.delete(synchronize_session=False)
+    StockTakeLine.query.delete(synchronize_session=False)
+    n_takes = StockTake.query.delete(synchronize_session=False)
+    db.session.commit()
+    parts = [f'{n_moves} stock movement(s)']
+    if n_takes:
+        parts.append(f'{n_takes} stock take(s)')
+    flash('Cleared recorded stock (' + ', '.join(parts) + '). Items were kept.'
+          + (f' Backup saved to {backup.name}.' if backup else ''), 'success')
+    return redirect(url_for('inventory.stock'))
+
+
 @inventory_bp.route('/adjust', methods=['GET', 'POST'])
 def adjust():
     locations = Location.ordered()

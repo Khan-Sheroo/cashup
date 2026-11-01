@@ -32,6 +32,10 @@
                         cat=([('' if selected_category == '__none__' else selected_category)] if selected_category else None)) }}"
                target="_blank" class="btn btn-outline-dark btn-sm">Print Count Sheet</a>
             <a href="{{ url_for('recipes.list_items') }}" class="btn btn-outline-dark btn-sm">Manage Categories</a>
+            <form method="POST" action="{{ url_for('inventory.clear_stock_levels') }}" class="d-inline"
+                  onsubmit="return confirm('Clear recorded stock levels? Items stay. Counted quantities go back to zero.');">
+                <button type="submit" class="btn btn-outline-danger btn-sm">Clear Stock Levels (Testing)</button>
+            </form>
         </div>
     </div>
 
