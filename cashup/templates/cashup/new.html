@@ -634,13 +634,14 @@
             <div class="terminal">{{ terminal_id }}</div>
             <div class="money-input">
                 <span class="currency-prefix">{{ currency_symbol }}</span>
-                <input type="number"
+                <input type="text"
                        class="card-machine-input"
                        id="card_machine_{{ terminal_id }}"
                        name="card_machine_{{ terminal_id }}"
-                       step="0.01"
-                       min="0"
-                       value="{{ "%.2f"|format(card_batch_dict.get(terminal_id, 0)) }}">
+                       inputmode="decimal"
+                       autocomplete="off"
+                       title="Type a figure, or a sum such as =500+100"
+                       {% if card_batch_dict.get(terminal_id) %}value="{{ '%.2f'|format(card_batch_dict.get(terminal_id)) }}"{% endif %}>
             </div>
         </div>
         {% endfor %}
@@ -688,38 +689,38 @@
                         <td>
                             <div class="money-input">
                                 <span class="currency-prefix">{{ currency_symbol }}</span>
-                                <input type="number" class="form-control form-control-sm numeric-input turnover-input" name="turnover_{{ row_i }}" step="0.01" min="0" required value="{{ "%.2f"|format(cashup.turnover) }}">
+                                <input type="text" class="form-control form-control-sm numeric-input turnover-input" name="turnover_{{ row_i }}" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100"{% if cashup.turnover %} value="{{ '%.2f'|format(cashup.turnover) }}"{% endif %}>
                             </div>
                         </td>
                         <td>
                             <div class="money-input">
                                 <span class="currency-prefix">SCR</span>
-                                <input type="number" class="form-control form-control-sm numeric-input cash-scr-input" name="cash_scr_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.cash_scr or 0) }}">
+                                <input type="text" class="form-control form-control-sm numeric-input cash-scr-input" name="cash_scr_{{ row_i }}" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100"{% if cashup.cash_scr %} value="{{ '%.2f'|format(cashup.cash_scr) }}"{% endif %}>
                             </div>
                         </td>
                         <td>
                             <div class="money-input">
                                 <span class="currency-prefix">$</span>
-                                <input type="number" class="form-control form-control-sm numeric-input cash-usd-input" name="cash_usd_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.cash_usd or 0) }}">
+                                <input type="text" class="form-control form-control-sm numeric-input cash-usd-input" name="cash_usd_{{ row_i }}" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100"{% if cashup.cash_usd %} value="{{ '%.2f'|format(cashup.cash_usd) }}"{% endif %}>
                             </div>
                         </td>
                         <td>
                             <div class="money-input">
                                 <span class="currency-prefix">€</span>
-                                <input type="number" class="form-control form-control-sm numeric-input cash-eur-input" name="cash_eur_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.cash_eur or 0) }}">
+                                <input type="text" class="form-control form-control-sm numeric-input cash-eur-input" name="cash_eur_{{ row_i }}" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100"{% if cashup.cash_eur %} value="{{ '%.2f'|format(cashup.cash_eur) }}"{% endif %}>
                             </div>
                         </td>
                         <td class="cash-total">{{ cashup.cash_total|money }}</td>
                         <td>
                             <div class="money-input">
                                 <span class="currency-prefix">{{ currency_symbol }}</span>
-                                <input type="number" class="form-control form-control-sm numeric-input creditcard-input" name="credit_card_{{ row_i }}" step="0.01" min="0" required value="{{ "%.2f"|format(cashup.credit_card_total) }}">
+                                <input type="text" class="form-control form-control-sm numeric-input creditcard-input" name="credit_card_{{ row_i }}" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100"{% if cashup.credit_card_total %} value="{{ '%.2f'|format(cashup.credit_card_total) }}"{% endif %}>
                             </div>
                         </td>
                         <td>
                             <div class="money-input">
                                 <span class="currency-prefix">{{ currency_symbol }}</span>
-                                <input type="number" class="form-control form-control-sm numeric-input creditsale-input" name="credit_sale_{{ row_i }}" step="0.01" min="0" value="{{ "%.2f"|format(cashup.credit_sale or 0) }}">
+                                <input type="text" class="form-control form-control-sm numeric-input creditsale-input" name="credit_sale_{{ row_i }}" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100"{% if cashup.credit_sale %} value="{{ '%.2f'|format(cashup.credit_sale) }}"{% endif %}>
                             </div>
                         </td>
                         {% if tip_rules %}
@@ -751,38 +752,38 @@
                     <td>
                         <div class="money-input">
                             <span class="currency-prefix">{{ currency_symbol }}</span>
-                            <input type="number" class="form-control form-control-sm numeric-input turnover-input" name="turnover_0" step="0.01" min="0" required>
+                            <input type="text" class="form-control form-control-sm numeric-input turnover-input" name="turnover_0" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100">
                         </div>
                     </td>
                     <td>
                         <div class="money-input">
                             <span class="currency-prefix">SCR</span>
-                            <input type="number" class="form-control form-control-sm numeric-input cash-scr-input" name="cash_scr_0" step="0.01" min="0" value="0">
+                            <input type="text" class="form-control form-control-sm numeric-input cash-scr-input" name="cash_scr_0" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100">
                         </div>
                     </td>
                     <td>
                         <div class="money-input">
                             <span class="currency-prefix">$</span>
-                            <input type="number" class="form-control form-control-sm numeric-input cash-usd-input" name="cash_usd_0" step="0.01" min="0" value="0">
+                            <input type="text" class="form-control form-control-sm numeric-input cash-usd-input" name="cash_usd_0" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100">
                         </div>
                     </td>
                     <td>
                         <div class="money-input">
                             <span class="currency-prefix">€</span>
-                            <input type="number" class="form-control form-control-sm numeric-input cash-eur-input" name="cash_eur_0" step="0.01" min="0" value="0">
+                            <input type="text" class="form-control form-control-sm numeric-input cash-eur-input" name="cash_eur_0" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100">
                         </div>
                     </td>
                     <td class="cash-total">{{ 0|money }}</td>
                     <td>
                         <div class="money-input">
                             <span class="currency-prefix">{{ currency_symbol }}</span>
-                            <input type="number" class="form-control form-control-sm numeric-input creditcard-input" name="credit_card_0" step="0.01" min="0" required>
+                            <input type="text" class="form-control form-control-sm numeric-input creditcard-input" name="credit_card_0" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100">
                         </div>
                     </td>
                     <td>
                         <div class="money-input">
                             <span class="currency-prefix">{{ currency_symbol }}</span>
-                            <input type="number" class="form-control form-control-sm numeric-input creditsale-input" name="credit_sale_0" step="0.01" min="0" value="0">
+                            <input type="text" class="form-control form-control-sm numeric-input creditsale-input" name="credit_sale_0" inputmode="decimal" autocomplete="off" title="Type a figure, or a sum such as =500+100">
                         </div>
                     </td>
                     {% if tip_rules %}
@@ -1204,68 +1205,68 @@ document.addEventListener('DOMContentLoaded', function() {
             <td>
                 <div class="money-input">
                     <span class="currency-prefix">${TIP_SETTINGS.currency_symbol || ''}</span>
-                    <input type="number" 
-                           class="form-control form-control-sm numeric-input turnover-input" 
-                           name="turnover_${rowCount}" 
-                           step="0.01" 
-                           min="0" 
-                           required>
+                    <input type="text"
+                           class="form-control form-control-sm numeric-input turnover-input"
+                           name="turnover_${rowCount}"
+                           inputmode="decimal"
+                           autocomplete="off"
+                           title="Type a figure, or a sum such as =500+100">
                 </div>
             </td>
             <td>
                 <div class="money-input">
                     <span class="currency-prefix">SCR</span>
-                    <input type="number"
+                    <input type="text"
                            class="form-control form-control-sm numeric-input cash-scr-input"
                            name="cash_scr_${rowCount}"
-                           step="0.01"
-                           min="0"
-                           value="0">
+                           inputmode="decimal"
+                           autocomplete="off"
+                           title="Type a figure, or a sum such as =500+100">
                 </div>
             </td>
             <td>
                 <div class="money-input">
                     <span class="currency-prefix">$</span>
-                    <input type="number"
+                    <input type="text"
                            class="form-control form-control-sm numeric-input cash-usd-input"
                            name="cash_usd_${rowCount}"
-                           step="0.01"
-                           min="0"
-                           value="0">
+                           inputmode="decimal"
+                           autocomplete="off"
+                           title="Type a figure, or a sum such as =500+100">
                 </div>
             </td>
             <td>
                 <div class="money-input">
                     <span class="currency-prefix">€</span>
-                    <input type="number"
+                    <input type="text"
                            class="form-control form-control-sm numeric-input cash-eur-input"
                            name="cash_eur_${rowCount}"
-                           step="0.01"
-                           min="0"
-                           value="0">
+                           inputmode="decimal"
+                           autocomplete="off"
+                           title="Type a figure, or a sum such as =500+100">
                 </div>
             </td>
             <td class="cash-total">${formatMoney(0)}</td>
             <td>
                 <div class="money-input">
                     <span class="currency-prefix">${TIP_SETTINGS.currency_symbol || ''}</span>
-                    <input type="number" 
-                           class="form-control form-control-sm numeric-input creditcard-input" 
-                           name="credit_card_${rowCount}" 
-                           step="0.01" 
-                           min="0" 
-                           required>
+                    <input type="text"
+                           class="form-control form-control-sm numeric-input creditcard-input"
+                           name="credit_card_${rowCount}"
+                           inputmode="decimal"
+                           autocomplete="off"
+                           title="Type a figure, or a sum such as =500+100">
                 </div>
             </td>
             <td>
                 <div class="money-input">
                     <span class="currency-prefix">${TIP_SETTINGS.currency_symbol || ''}</span>
-                    <input type="number" 
-                           class="form-control form-control-sm numeric-input creditsale-input" 
-                           name="credit_sale_${rowCount}" 
-                           step="0.01" 
-                           min="0" 
-                           value="0">
+                    <input type="text"
+                           class="form-control form-control-sm numeric-input creditsale-input"
+                           name="credit_sale_${rowCount}"
+                           inputmode="decimal"
+                           autocomplete="off"
+                           title="Type a figure, or a sum such as =500+100">
                 </div>
             </td>
             ${tipCell}
@@ -1274,6 +1275,9 @@ document.addEventListener('DOMContentLoaded', function() {
             </td>
         `;
         tbody.appendChild(newRow);
+        newRow.querySelectorAll('.numeric-input').forEach((input) => {
+            input.dataset.committed = '';
+        });
         rowCount++;
         updateRemoveButtons();
         attachRowListeners(newRow);
@@ -1314,9 +1318,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         rows.forEach((row) => {
             const creditCardInput = row.querySelector('.creditcard-input');
-            if (creditCardInput && creditCardInput.value) {
-                formTotalCC += parseFloat(creditCardInput.value) || 0;
-            }
+            if (creditCardInput) formTotalCC += moneyFieldAmount(creditCardInput);
         });
         
         const totalCC = savedTotalCC + formTotalCC;
@@ -1329,12 +1331,103 @@ document.addEventListener('DOMContentLoaded', function() {
         updateTotalTenders();
     }
     
+    function parseBatchAmount(raw) {
+        let text = String(raw ?? '').trim().replace(/,/g, '').replace(/\s+/g, '');
+        if (!text) return 0;
+        if (text.startsWith('=')) text = text.slice(1);
+        if (!/^\d*\.?\d+(?:\+\d*\.?\d+)*$/.test(text)) return null;
+        let total = 0;
+        for (const part of text.split('+')) {
+            if (!part || part === '.') return null;
+            const n = Number(part);
+            if (!Number.isFinite(n)) return null;
+            total += n;
+        }
+        return Math.round(total * 100) / 100;
+    }
+
+    function moneyFieldAmount(input) {
+        if (!input) return 0;
+        const raw = isBatchFormula(input.value) ? (input.dataset.committed || '') : input.value;
+        const amount = parseBatchAmount(raw);
+        return amount == null ? 0 : amount;
+    }
+
+    function refreshStaffRow(row) {
+        calculateTip(row);
+        calculateTotalTipOuts();
+        calculateTotalTurnover();
+        calculateTotalCash();
+        calculateTotalCC();
+        calculateTotalCreditSale();
+    }
+
+    function focusNextSheetField(input) {
+        const row = input.closest('.cashup-row');
+        if (!row) return;
+        const fields = [...row.querySelectorAll('.staff-select, .numeric-input')];
+        const index = fields.indexOf(input);
+        if (index >= 0 && index < fields.length - 1) {
+            const next = fields[index + 1];
+            next.focus();
+            if (typeof next.select === 'function') next.select();
+            return;
+        }
+        const rows = [...tbody.querySelectorAll('.cashup-row')];
+        const rowIndex = rows.indexOf(row);
+        if (rowIndex >= 0 && rowIndex < rows.length - 1) {
+            const next = rows[rowIndex + 1].querySelector('.staff-select');
+            if (next) next.focus();
+            return;
+        }
+        addRowBtn.click();
+        setTimeout(() => {
+            const newRows = tbody.querySelectorAll('.cashup-row');
+            const staff = newRows[newRows.length - 1]?.querySelector('.staff-select');
+            if (staff) staff.focus();
+        }, 10);
+    }
+    function isBatchFormula(raw) {
+        const text = String(raw ?? '').trim();
+        return text.startsWith('=') || text.includes('+');
+    }
+
+    function commitBatchInput(input) {
+        const raw = input.value.trim();
+        if (!isBatchFormula(raw)) {
+            input.dataset.committed = raw;
+            return false;
+        }
+        const amount = parseBatchAmount(raw);
+        if (amount == null) return false;
+        const shown = amount ? amount.toFixed(2) : '';
+        input.value = shown;
+        input.dataset.committed = shown;
+        return true;
+    }
+
+    function batchAmountForTotal(input) {
+        const raw = isBatchFormula(input.value) ? (input.dataset.committed || '') : input.value;
+        return parseBatchAmount(raw);
+    }
+
+    function focusNextAfterBatch(input) {
+        const batches = [...document.querySelectorAll('.card-machine-input')];
+        const index = batches.indexOf(input);
+        const nextBatch = index >= 0 ? batches[index + 1] : null;
+        const next = nextBatch || document.querySelector('#cashupRows .staff-select');
+        if (!next) return;
+        next.focus();
+        if (typeof next.select === 'function') next.select();
+    }
+
     function calculateTotalBatches() {
         const cardMachineInputs = document.querySelectorAll('.card-machine-input');
         let totalBatches = 0;
         
         cardMachineInputs.forEach((input) => {
-            totalBatches += parseFloat(input.value) || 0;
+            const amount = batchAmountForTotal(input);
+            if (amount != null) totalBatches += amount;
         });
         
         const totalBatchesInput = document.getElementById('total_batches');
@@ -1374,9 +1467,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         rows.forEach((row) => {
             const turnoverInput = row.querySelector('.turnover-input');
-            if (turnoverInput && turnoverInput.value) {
-                formTotalTurnover += parseFloat(turnoverInput.value) || 0;
-            }
+            if (turnoverInput) formTotalTurnover += moneyFieldAmount(turnoverInput);
         });
         
         const field2Input = document.getElementById('field_2');
@@ -1395,9 +1486,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         rows.forEach((row) => {
             const input = row.querySelector('.creditsale-input');
-            if (input && input.value) {
-                formTotal += parseFloat(input.value) || 0;
-            }
+            if (input) formTotal += moneyFieldAmount(input);
         });
 
         const totalInput = document.getElementById('total_credit_sale');
@@ -1419,9 +1508,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function rowCashTotal(row) {
-        const scr = parseFloat(row.querySelector('.cash-scr-input')?.value) || 0;
-        const usd = parseFloat(row.querySelector('.cash-usd-input')?.value) || 0;
-        const eur = parseFloat(row.querySelector('.cash-eur-input')?.value) || 0;
+        const scr = moneyFieldAmount(row.querySelector('.cash-scr-input'));
+        const usd = moneyFieldAmount(row.querySelector('.cash-usd-input'));
+        const eur = moneyFieldAmount(row.querySelector('.cash-eur-input'));
         const usdRate = Number(TIP_SETTINGS.usd_to_scr) || 13;
         const eurRate = Number(TIP_SETTINGS.eur_to_scr) || 14;
         return Math.round((scr + usd * usdRate + eur * eurRate) * 100) / 100;
@@ -1579,6 +1668,9 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const formData = new FormData(form);
             if (sheetDate) formData.set('entry_date', sheetDate);
+            document.querySelectorAll('.card-machine-input, .numeric-input').forEach((input) => {
+                if (isBatchFormula(input.value)) formData.set(input.name, input.dataset.committed || '');
+            });
             const response = await fetch('{{ url_for("cashup.autosave_cashup") }}', {
                 method: 'POST',
                 body: formData,
@@ -1612,6 +1704,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('cashupForm').addEventListener('input', function(e) {
         if (e.target && e.target.id === 'entry_date') return;
+        if (e.target && e.target.classList && e.target.classList.contains('card-machine-input') && isBatchFormula(e.target.value)) return;
+        if (e.target && e.target.classList && e.target.classList.contains('numeric-input') && isBatchFormula(e.target.value)) return;
         scheduleAutosave();
     });
     document.getElementById('cashupForm').addEventListener('change', function(e) {
@@ -1632,6 +1726,9 @@ document.addEventListener('DOMContentLoaded', function() {
         reindexRowFields();
         const formData = new FormData(form);
         if (sheetDate) formData.set('entry_date', sheetDate);
+        document.querySelectorAll('.card-machine-input, .numeric-input').forEach((input) => {
+            if (isBatchFormula(input.value)) formData.set(input.name, input.dataset.committed || '');
+        });
         if (navigator.sendBeacon) {
             navigator.sendBeacon('{{ url_for("cashup.autosave_cashup") }}', formData);
         }
@@ -1680,10 +1777,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const tipInput = row.querySelector('.tip-amount');
 
         updateRowCash(row);
-        const turnover = parseFloat(turnoverInput.value) || 0;
+        const turnover = moneyFieldAmount(turnoverInput);
         const cash = rowCashTotal(row);
-        const creditCard = parseFloat(creditCardInput.value) || 0;
-        const creditSale = parseFloat(creditSaleInput ? creditSaleInput.value : 0) || 0;
+        const creditCard = moneyFieldAmount(creditCardInput);
+        const creditSale = moneyFieldAmount(creditSaleInput);
         const effectiveTurnover = turnover - creditSale;
         
         const grossTip = cash + creditCard - effectiveTurnover;
@@ -1770,6 +1867,34 @@ document.addEventListener('DOMContentLoaded', function() {
         attachRowListeners(row);
         calculateTip(row);
     });
+    document.querySelectorAll('.numeric-input').forEach((input) => {
+        input.dataset.committed = input.value.trim();
+    });
+
+    tbody.addEventListener('focusout', (e) => {
+        const target = e.target;
+        if (!target.classList || !target.classList.contains('numeric-input')) return;
+        if (!commitBatchInput(target)) return;
+        refreshStaffRow(target.closest('.cashup-row'));
+        scheduleAutosave();
+    });
+    tbody.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const target = e.target;
+        if (!target.classList) return;
+        const isMoney = target.classList.contains('numeric-input');
+        const isStaff = target.classList.contains('staff-select');
+        if (!isMoney && !isStaff) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (isMoney) {
+            if (isBatchFormula(target.value) && parseBatchAmount(target.value) == null) return;
+            commitBatchInput(target);
+            refreshStaffRow(target.closest('.cashup-row'));
+            scheduleAutosave();
+        }
+        focusNextSheetField(target);
+    });
 
     document.getElementById('cashupForm').addEventListener('submit', function(e) {
         const date = entryDate.value;
@@ -1779,6 +1904,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
 
+        document.querySelectorAll('.card-machine-input, .numeric-input').forEach(commitBatchInput);
         reindexRowFields();
         localStorage.setItem('cashupLastDate', date);
         const rows = tbody.querySelectorAll('.cashup-row');
@@ -1828,7 +1954,23 @@ document.addEventListener('DOMContentLoaded', function() {
     calculateTotalTipOuts();
     updateNetTurnover();
     document.querySelectorAll('.card-machine-input').forEach((input) => {
+        input.dataset.committed = input.value.trim();
         input.addEventListener('input', calculateTotalBatches);
+        input.addEventListener('blur', () => {
+            if (!commitBatchInput(input)) return;
+            calculateTotalBatches();
+            scheduleAutosave();
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (isBatchFormula(input.value) && parseBatchAmount(input.value) == null) return;
+            commitBatchInput(input);
+            calculateTotalBatches();
+            scheduleAutosave();
+            focusNextAfterBatch(input);
+        });
     });
 
     // --- Staff Files section ---

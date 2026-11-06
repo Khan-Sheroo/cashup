@@ -186,7 +186,7 @@
     </div>
 
     <h2>Waiter Tips</h2>
-    <p class="sheet-meta" style="margin-top: -0.35rem;">Type a tip in any day. Total tips is that person's week minus a 3% card levy.</p>
+    <p class="sheet-meta" style="margin-top: -0.35rem;">Type a tip, or a sum such as =500+100. It is saved when you leave the cell or press Enter. Total tips is that person's week minus a 3% card levy.</p>
     {% if addable %}
     <div class="add-person">
         <label for="addPerson">Add a person</label>
@@ -222,7 +222,8 @@
                     <td class="name">{{ row.name }}</td>
                     {% for day in row.days %}
                     <td class="num">
-                        <input type="number" class="tip-cell" step="0.01"
+                        <input type="text" class="tip-cell" inputmode="decimal" autocomplete="off"
+                               title="Type a figure, or a sum such as =500+100"
                                data-staff-id="{{ row.id }}"
                                data-date="{{ day.date.isoformat() }}"
                                value="{% if day.amount %}{{ '%.2f'|format(day.amount) }}{% endif %}"
@@ -272,9 +273,54 @@ function formatTip(value) {
     return amount < 0 ? `-${TIP_SYMBOL}${text}` : `${TIP_SYMBOL}${text}`;
 }
 
+function parseTipAmount(raw) {
+    let text = String(raw ?? '').trim().replace(/,/g, '').replace(/\s+/g, '');
+    if (!text) return 0;
+    if (text.startsWith('=')) text = text.slice(1);
+    if (!/^-?\d*\.?\d+(?:\+\d*\.?\d+)*$/.test(text)) return null;
+    let total = 0;
+    const parts = text.split('+');
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (!part || part === '.' || part === '-') return null;
+        const n = Number(part);
+        if (!Number.isFinite(n)) return null;
+        total += n;
+    }
+    return Math.round(total * 100) / 100;
+}
+
+function isTipFormula(raw) {
+    const text = String(raw ?? '').trim();
+    return text.startsWith('=') || text.includes('+');
+}
+
+function commitTipInput(input) {
+    const raw = input.value.trim();
+    if (!isTipFormula(raw)) {
+        input.dataset.committed = raw;
+        return false;
+    }
+    const amount = parseTipAmount(raw);
+    if (amount == null) return false;
+    const shown = amount ? amount.toFixed(2) : '';
+    input.value = shown;
+    input.dataset.committed = shown;
+    return true;
+}
+
 function cellAmount(input) {
-    const n = parseFloat(input.value);
+    const raw = isTipFormula(input.value) ? (input.dataset.committed || '') : input.value;
+    const n = parseFloat(raw);
     return Number.isFinite(n) ? n : 0;
+}
+
+function focusNextTip(input) {
+    const cells = [...document.querySelectorAll('.tip-cell')];
+    const next = cells[cells.indexOf(input) + 1];
+    if (!next) return;
+    next.focus();
+    next.select();
 }
 
 function levySplit(gross) {
@@ -338,16 +384,39 @@ async function saveTip(input) {
         }
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setTipStatus(`Saved at ${time}`);
+        return true;
     } catch (err) {
         setTipStatus('Could not save — check connection', true);
+        return false;
     }
 }
 
+function persistTip(input) {
+    const current = input.dataset.committed || '';
+    if (current === (input.dataset.saved || '')) return;
+    saveTip(input).then((ok) => {
+        if (ok) input.dataset.saved = current;
+    });
+}
+
 function bindTipInput(input) {
+    const initial = input.value.trim();
+    input.dataset.committed = initial;
+    input.dataset.saved = initial;
     input.addEventListener('input', refreshTipTotals);
-    input.addEventListener('change', function () {
+    input.addEventListener('blur', () => {
+        commitTipInput(input);
         refreshTipTotals();
-        saveTip(input);
+        persistTip(input);
+    });
+    input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (isTipFormula(input.value) && parseTipAmount(input.value) == null) return;
+        commitTipInput(input);
+        refreshTipTotals();
+        persistTip(input);
+        focusNextTip(input);
     });
 }
 
@@ -365,7 +434,8 @@ if (addPerson) {
         row.dataset.staffId = staffId;
         const cells = WEEK_DATES.map((day) => `
             <td class="num">
-                <input type="number" class="tip-cell" step="0.01"
+                <input type="text" class="tip-cell" inputmode="decimal" autocomplete="off"
+                       title="Type a figure, or a sum such as =500+100"
                        data-staff-id="${staffId}" data-date="${day}"
                        aria-label="${name} ${day}">
             </td>`).join('');

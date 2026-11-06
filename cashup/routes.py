@@ -22,6 +22,7 @@ from cashup.settings_util import (
     slugify_key,
 )
 from datetime import datetime, date, timedelta
+import re
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from uuid import uuid4
@@ -530,6 +531,29 @@ def delete_staff_file(doc_id):
 cashup_bp = Blueprint('cashup', __name__, url_prefix='/cashup')
 
 
+_BATCH_SUM = re.compile(r'-?\d*\.?\d+(?:\+\d*\.?\d+)*\Z')
+
+
+def parse_batch_total(raw):
+    """A batch figure, or an Excel-style sum such as =500+100. None if unfinished."""
+    text = (raw or '').strip().replace(',', '').replace(' ', '')
+    if not text:
+        return Decimal('0')
+    if text.startswith('='):
+        text = text[1:]
+    if not text or _BATCH_SUM.fullmatch(text) is None:
+        return None
+    total = Decimal('0')
+    for part in text.split('+'):
+        if not part or part == '.':
+            return None
+        try:
+            total += Decimal(part)
+        except InvalidOperation:
+            return None
+    return total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
 def persist_cashup_drafts(form):
     """Save draft cash-ups and card machine batches from form data.
     
@@ -548,11 +572,12 @@ def persist_cashup_drafts(form):
     
     # Save card machine batch totals (including 0 to clear/update)
     for terminal_id in CARD_MACHINE_TERMINALS:
-        batch_total_str = form.get(f'card_machine_{terminal_id}', '0')
-        try:
-            batch_total = Decimal(batch_total_str) if batch_total_str else Decimal('0')
-        except (InvalidOperation, ValueError):
-            batch_total = Decimal('0')
+        batch_total_str = form.get(f'card_machine_{terminal_id}')
+        if batch_total_str is None:
+            continue
+        batch_total = parse_batch_total(batch_total_str)
+        if batch_total is None:
+            continue
         
         card_batch = CardMachineBatch.query.filter_by(
             date=entry_date_obj,
@@ -592,12 +617,14 @@ def persist_cashup_drafts(form):
         credit_sale_str = form.get(f'credit_sale_{i}', '0') or '0'
         
         try:
-            turnover = Decimal(turnover_str)
-            cash_scr = Decimal(cash_scr_str)
-            cash_usd = Decimal(cash_usd_str)
-            cash_eur = Decimal(cash_eur_str)
-            credit_card = Decimal(credit_card_str)
-            credit_sale = Decimal(credit_sale_str)
+            turnover = parse_batch_total(turnover_str)
+            cash_scr = parse_batch_total(cash_scr_str)
+            cash_usd = parse_batch_total(cash_usd_str)
+            cash_eur = parse_batch_total(cash_eur_str)
+            credit_card = parse_batch_total(credit_card_str)
+            credit_sale = parse_batch_total(credit_sale_str)
+            if None in (turnover, cash_scr, cash_usd, cash_eur, credit_card, credit_sale):
+                raise InvalidOperation
         except (InvalidOperation, ValueError):
             errors.append(f'Row {i+1}: Invalid numeric values')
             continue
@@ -1459,7 +1486,9 @@ def save_tip():
     try:
         staff_id = int(request.form.get('staff_id', ''))
         tip_date = datetime.strptime(request.form.get('date', ''), '%Y-%m-%d').date()
-        amount = Decimal(request.form.get('amount') or '0')
+        amount = parse_batch_total(request.form.get('amount') or '0')
+        if amount is None:
+            raise InvalidOperation
     except (TypeError, ValueError, InvalidOperation):
         return jsonify({'success': False, 'error': 'Enter a valid tip amount'}), 400
 

@@ -4,8 +4,165 @@
     const template = document.getElementById('line-template');
     const addBtn = document.getElementById('add-line');
 
+    function makeSearchable(select) {
+        if (select.dataset.searchable) return;
+        select.dataset.searchable = '1';
+        const wrap = document.createElement('div');
+        wrap.className = 'item-search';
+        select.parentNode.insertBefore(wrap, select);
+        wrap.appendChild(select);
+        select.classList.add('item-search-native');
+        select.tabIndex = -1;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'item-search-input';
+        input.placeholder = 'Search item';
+        input.autocomplete = 'off';
+        input.setAttribute('aria-label', 'Search item');
+        const list = document.createElement('div');
+        list.className = 'item-search-list';
+        list.hidden = true;
+        wrap.insertBefore(input, select);
+        wrap.appendChild(list);
+
+        const options = [...select.options].filter(function (option) { return option.value; }).map(function (option) {
+            const group = option.parentElement;
+            return {
+                value: option.value,
+                name: option.textContent,
+                category: group && group.tagName === 'OPTGROUP' ? group.label : ''
+            };
+        });
+        let active = 0;
+
+        function selectedName() {
+            const option = select.options[select.selectedIndex];
+            return option && option.value ? option.textContent : '';
+        }
+
+        function place() {
+            const rect = input.getBoundingClientRect();
+            list.style.left = rect.left + 'px';
+            list.style.top = rect.bottom + 'px';
+            list.style.width = Math.max(rect.width, 240) + 'px';
+        }
+
+        function highlight() {
+            const buttons = [...list.querySelectorAll('.item-search-option')];
+            buttons.forEach(function (button, index) {
+                button.classList.toggle('is-active', index === active);
+            });
+            if (buttons[active]) buttons[active].scrollIntoView({ block: 'nearest' });
+        }
+
+        function render(query) {
+            const needle = query.trim().toLowerCase();
+            const matches = options.filter(function (item) {
+                return !needle
+                    || item.name.toLowerCase().indexOf(needle) !== -1
+                    || item.category.toLowerCase().indexOf(needle) !== -1;
+            });
+            list.innerHTML = '';
+            if (!matches.length) {
+                const empty = document.createElement('div');
+                empty.className = 'item-search-empty';
+                empty.textContent = 'No matching items';
+                list.appendChild(empty);
+                active = -1;
+                return;
+            }
+            let category = null;
+            const selected = matches.findIndex(function (item) { return item.value === select.value; });
+            active = selected >= 0 ? selected : 0;
+            matches.forEach(function (item, index) {
+                if (item.category !== category) {
+                    category = item.category;
+                    const head = document.createElement('div');
+                    head.className = 'item-search-cat';
+                    head.textContent = category || 'Uncategorised';
+                    list.appendChild(head);
+                }
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'item-search-option';
+                if (item.value === select.value) button.classList.add('is-selected');
+                button.textContent = item.name;
+                button.dataset.value = item.value;
+                button.addEventListener('mousedown', function (event) {
+                    event.preventDefault();
+                    choose(item.value);
+                });
+                list.appendChild(button);
+                if (index === active) button.classList.add('is-active');
+            });
+        }
+
+        function openList() {
+            document.querySelectorAll('.item-search-list').forEach(function (other) {
+                if (other !== list) other.hidden = true;
+            });
+            render(input.value === selectedName() ? '' : input.value);
+            place();
+            list.hidden = false;
+        }
+
+        function closeList() {
+            list.hidden = true;
+            input.value = selectedName();
+        }
+
+        function choose(value) {
+            select.value = value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            input.value = selectedName();
+            list.hidden = true;
+        }
+
+        input.addEventListener('focus', function () {
+            input.select();
+            openList();
+        });
+        input.addEventListener('input', function () {
+            if (select.value && input.value !== selectedName()) {
+                select.value = '';
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            openList();
+        });
+        input.addEventListener('blur', function () {
+            setTimeout(closeList, 150);
+        });
+        input.addEventListener('keydown', function (event) {
+            const buttons = [...list.querySelectorAll('.item-search-option')];
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                if (list.hidden) openList();
+                active = Math.min(active + 1, buttons.length - 1);
+                highlight();
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                active = Math.max(active - 1, 0);
+                highlight();
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                const button = buttons[active] || buttons[0];
+                if (button) choose(button.dataset.value);
+            } else if (event.key === 'Escape') {
+                closeList();
+            }
+        });
+        window.addEventListener('scroll', function () {
+            if (!list.hidden) place();
+        }, true);
+        window.addEventListener('resize', function () {
+            if (!list.hidden) place();
+        });
+    }
+
     function bind(row) {
         const select = row.querySelector('.line-item');
+        makeSearchable(select);
         const unitCell = row.querySelector('.line-unit');
         const unitSelect = row.querySelector('.line-unit-select');
         const stockCell = row.querySelector('.line-stock');
