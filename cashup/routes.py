@@ -22,6 +22,7 @@ from cashup.settings_util import (
     slugify_key,
 )
 from datetime import datetime, date, timedelta
+import calendar
 import re
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
@@ -1473,11 +1474,137 @@ def build_tips_week(week_start):
     }
 
 
+def _parse_iso_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _month_bounds(month_value):
+    """First and last day of YYYY-MM, or of the current month."""
+    today = date.today()
+    year, month = today.year, today.month
+    if month_value:
+        try:
+            year_text, month_text = month_value.split('-', 1)
+            year, month = int(year_text), int(month_text)
+            if not 1 <= month <= 12:
+                raise ValueError
+        except ValueError:
+            year, month = today.year, today.month
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    return start, end
+
+
+def _shift_month(month_start, delta):
+    index = month_start.month - 1 + delta
+    year = month_start.year + index // 12
+    month = index % 12 + 1
+    return date(year, month, 1)
+
+
+def build_tips_range(start, end):
+    """Per-person tip totals for a date range. A hand-typed tip replaces the cash-up figure."""
+    if end < start:
+        start, end = end, start
+
+    waiters = Staff.query.filter_by(active=True, is_waiter=True).order_by(Staff.name).all()
+    people = {waiter.id: waiter for waiter in waiters}
+
+    calculated = {}
+    cashups = CashUp.query.join(Staff).filter(
+        Staff.is_waiter.is_(True),
+        CashUp.date >= start,
+        CashUp.date <= end,
+    ).all()
+    for cashup in cashups:
+        key = (cashup.staff_id, cashup.date)
+        calculated[key] = calculated.get(key, 0.0) + float(cashup.tip_amount or 0)
+
+    manual_rows = WaiterTip.query.filter(
+        WaiterTip.date >= start,
+        WaiterTip.date <= end,
+        WaiterTip.manual.is_(True),
+    ).all()
+    manual = {(row.staff_id, row.date): float(row.tip_amount or 0) for row in manual_rows}
+
+    extra_ids = {staff_id for staff_id, _day in list(manual) + list(calculated) if staff_id not in people}
+    if extra_ids:
+        for person in Staff.query.filter(Staff.id.in_(extra_ids)).all():
+            people[person.id] = person
+
+    days = []
+    day = start
+    while day <= end:
+        days.append(day)
+        day += timedelta(days=1)
+
+    rows = []
+    for person in sorted(people.values(), key=lambda item: item.name.lower()):
+        gross = 0.0
+        seen = False
+        for day in days:
+            key = (person.id, day)
+            if key in manual:
+                gross += manual[key]
+                seen = True
+            elif calculated.get(key):
+                gross += calculated[key]
+                seen = True
+        if not seen or not gross:
+            continue
+        net, levy = tip_after_levy(gross)
+        rows.append({
+            'id': person.id,
+            'name': person.name,
+            'gross': gross,
+            'total': net,
+            'levy': levy,
+        })
+
+    return {
+        'start': start,
+        'end': end,
+        'rows': rows,
+        'total_tips': sum(row['total'] for row in rows),
+        'total_levy': sum(row['levy'] for row in rows),
+        'total_gross': sum(row['gross'] for row in rows),
+    }
+
+
 @cashup_bp.route('/tips', methods=['GET'])
 def tips_sheet():
     """Weekly tips sheet showing waiter tips"""
     sheet = build_tips_week(_tips_week_start(request.args.get('week_start', '')))
     return render_template('cashup/tips.html', **sheet)
+
+
+@cashup_bp.route('/tips/totals', methods=['GET'])
+def tips_totals():
+    """Tip totals for a calendar month or a custom date range."""
+    view = request.args.get('view', 'month')
+    if view not in ('month', 'custom'):
+        view = 'month'
+    today = date.today()
+    if view == 'custom':
+        start = _parse_iso_date(request.args.get('start', '')) or today.replace(day=1)
+        end = _parse_iso_date(request.args.get('end', '')) or today
+    else:
+        start, end = _month_bounds(request.args.get('month', ''))
+    report = build_tips_range(start, end)
+    month_start = date(report['start'].year, report['start'].month, 1)
+    return render_template(
+        'cashup/tips_totals.html',
+        view=view,
+        month_value=month_start.strftime('%Y-%m'),
+        prev_month=_shift_month(month_start, -1).strftime('%Y-%m'),
+        next_month=_shift_month(month_start, 1).strftime('%Y-%m'),
+        **report,
+    )
 
 
 @cashup_bp.route('/tips/save', methods=['POST'])

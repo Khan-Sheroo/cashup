@@ -162,6 +162,8 @@
         <div class="d-flex flex-wrap gap-2">
             <a href="{{ url_for('cashup.tips_sheet', week_start=prev_week.isoformat()) }}" class="btn btn-sm btn-outline-dark">Previous Week</a>
             <a href="{{ url_for('cashup.tips_sheet', week_start=next_week.isoformat()) }}" class="btn btn-sm btn-outline-dark">Next Week</a>
+            <a href="{{ url_for('cashup.tips_totals', view='month', month=week_start.strftime('%Y-%m')) }}" class="btn btn-sm btn-outline-dark">Monthly totals</a>
+            <a href="{{ url_for('cashup.tips_totals', view='custom', start=week_start.isoformat(), end=week_end.isoformat()) }}" class="btn btn-sm btn-outline-dark">Custom dates</a>
         </div>
     </div>
 
