@@ -86,7 +86,10 @@
     }
     .status-active { font-weight: 600; }
     .status-inactive { color: #666; }
-    .cat-filter { border: 1px solid #333; border-radius: 0; padding: 0.2rem 0.4rem; }
+    .cat-filter, .item-search { border: 1px solid #333; border-radius: 0; padding: 0.2rem 0.4rem; }
+    .item-search { min-width: 14rem; }
+    #items-table tr.search-miss { display: none !important; }
+    #items-table.is-searching tr.item-row:not(.search-miss) { display: table-row !important; }
     .cat-manage td form { display: flex; gap: 0.35rem; margin: 0; }
     .cat-manage input { border: 1px solid #333; border-radius: 0; padding: 0.15rem 0.4rem; flex: 1; }
 </style>
@@ -97,7 +100,8 @@
     <h1>Cost Items</h1>
     <div class="sheet-meta">
         <form method="GET" class="d-flex align-items-center gap-2 mb-0">
-            <small>{{ items|length }} item{{ '' if items|length == 1 else 's' }} shown</small>
+            <small id="item-shown">{{ items|length }} item{{ '' if items|length == 1 else 's' }} shown</small>
+            <input type="search" name="q" id="item-search" class="item-search" placeholder="Search items" autocomplete="off" aria-label="Search items">
             <select name="category" class="cat-filter" onchange="this.form.submit()">
                 <option value="">All categories</option>
                 {% for cat, n in category_counts %}
@@ -122,7 +126,7 @@
     <h2>Item Master</h2>
     {% include "recipes/_category_bar.html" %}
     <div class="table-responsive">
-        <table class="sheet-table">
+        <table class="sheet-table" id="items-table">
             <thead>
                 <tr>
                     <th style="width: 3%;"></th>
@@ -150,7 +154,7 @@
                             </td>
                         </tr>
                     {% endif %}
-                    <tr>
+                    <tr class="item-row" data-name="{{ item.name }}">
                         <td class="col-center">
                             <input type="checkbox" class="cat-item" name="item_ids" value="{{ item.id }}" form="cat-form" data-cat="{{ item.category or '' }}">
                         </td>
@@ -181,6 +185,9 @@
                         </td>
                     </tr>
                     {% endfor %}
+                    <tr id="item-search-empty" hidden>
+                        <td colspan="8" class="text-center text-muted">No items match that search.</td>
+                    </tr>
                 {% else %}
                     <tr>
                         <td colspan="8" class="text-center text-muted">
@@ -220,4 +227,54 @@
         <a href="{{ url_for('recipes.list_recipes') }}" class="btn btn-outline-dark">Back to Recipes</a>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const search = document.getElementById('item-search');
+    const table = document.getElementById('items-table');
+    const shown = document.getElementById('item-shown');
+    const empty = document.getElementById('item-search-empty');
+    if (!search || !table) return;
+
+    const fromUrl = new URLSearchParams(location.search).get('q');
+    if (fromUrl) search.value = fromUrl;
+
+    function applySearch() {
+        const needle = search.value.trim().toLowerCase();
+        table.classList.toggle('is-searching', needle.length > 0);
+        let total = 0;
+        table.querySelectorAll('tr.cat-row').forEach(function (header) {
+            let visible = 0;
+            let row = header.nextElementSibling;
+            while (row && !row.classList.contains('cat-row') && row !== empty) {
+                if (row.classList.contains('item-row')) {
+                    const name = (row.dataset.name || '').toLowerCase();
+                    const cat = ((row.querySelector('.cat-item') || {}).dataset || {}).cat || '';
+                    const match = !needle || name.indexOf(needle) !== -1 || cat.toLowerCase().indexOf(needle) !== -1;
+                    row.classList.toggle('search-miss', !match);
+                    if (match) visible += 1;
+                }
+                row = row.nextElementSibling;
+            }
+            header.classList.toggle('search-miss', needle.length > 0 && visible === 0);
+            const count = header.querySelector('.cat-count');
+            if (count) {
+                if (!count.dataset.label) count.dataset.label = count.textContent;
+                count.textContent = needle
+                    ? '— ' + visible + ' item' + (visible === 1 ? '' : 's')
+                    : count.dataset.label;
+            }
+            total += visible;
+        });
+        if (shown) shown.textContent = total + ' item' + (total === 1 ? '' : 's') + ' shown';
+        if (empty) empty.hidden = !(needle && total === 0);
+    }
+
+    search.addEventListener('input', applySearch);
+    search.addEventListener('search', applySearch);
+    applySearch();
+});
+</script>
 {% endblock %}

@@ -158,6 +158,7 @@
         window.addEventListener('resize', function () {
             if (!list.hidden) place();
         });
+        input.value = selectedName();
     }
 
     function bind(row) {
@@ -197,6 +198,22 @@
     }
 
     addBtn.addEventListener('click', addLine);
-    for (let i = 0; i < 5; i++) addLine();
+    const initialLines = Array.isArray(window.REQUISITION_LINES) ? window.REQUISITION_LINES : [];
+    if (initialLines.length) {
+        initialLines.forEach(function (line) {
+            addLine();
+            const row = body.lastElementChild;
+            const select = row.querySelector('.line-item');
+            select.value = String(line.item_id);
+            select.dispatchEvent(new Event('change'));
+            const search = row.querySelector('.item-search-input');
+            const selected = select.options[select.selectedIndex];
+            if (search) search.value = selected && selected.value ? selected.textContent : '';
+            const qty = row.querySelector('[name="line_quantity"]');
+            if (qty) qty.value = line.quantity;
+        });
+    } else {
+        for (let i = 0; i < 5; i++) addLine();
+    }
 })();
 </script>

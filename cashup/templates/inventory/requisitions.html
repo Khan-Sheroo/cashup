@@ -26,6 +26,7 @@
                     <td class="col-center">
                         <div class="btn-row justify-content-center">
                             <a href="{{ url_for('inventory.view_requisition', req_id=req.id) }}" class="btn btn-sm btn-outline-dark">View</a>
+                            <a href="{{ url_for('inventory.edit_requisition', req_id=req.id) }}" class="btn btn-sm btn-outline-dark">Edit</a>
                             <form method="POST" action="{{ url_for('inventory.delete_requisition', req_id=req.id) }}" onsubmit="return confirm('Delete this requisition and move the stock back?');">
                                 <button class="btn btn-sm btn-outline-danger">Delete</button>
                             </form>

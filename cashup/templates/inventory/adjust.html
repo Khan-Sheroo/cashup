@@ -2,26 +2,34 @@
 
 {% block title %}Manual Stock Entry - CashUp{% endblock %}
 
+{% block inv_css %}
+<style>
+    #entry-lines.hide-store .store-col,
+    #entry-lines.hide-store .line-stock { display: none; }
+</style>
+{% endblock %}
+
 {% block inv_content %}
 <div class="work-sheet" style="max-width: 56rem;">
     <h1>Manual Stock Entry</h1>
     <div class="sheet-meta">
-        <small>Choose the unit per line — the item's count unit (e.g. Bot) or its recipe unit (e.g. ml). Use "Opening Balance" to set starting stock.</small>
+        <small id="entry-help">Choose the unit per line — the item's count unit (e.g. Bot) or its recipe unit (e.g. ml). Use "Opening Balance" to set starting stock.</small>
     </div>
 
     <form method="POST">
         <div class="field-grid">
             <div class="settings-field">
-                <div class="label">Location *</div>
-                <select name="location_id" required>
+                <div class="label" id="location-label">Location *</div>
+                <select name="location_id" id="entry-location" required>
                     {% for loc in locations %}
-                    <option value="{{ loc.id }}" {% if request.form.get('location_id')|int == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                    <option value="{{ loc.id }}" {% if loc.kind == 'store' %}data-kind="store"{% endif %}
+                            {% if request.form.get('location_id')|int == loc.id %}selected{% endif %}>{{ loc.name }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="settings-field">
                 <div class="label">Type *</div>
-                <select name="kind">
+                <select name="kind" id="entry-kind">
                     {% for value, label in adjust_kinds %}
                     <option value="{{ value }}" {% if request.form.get('kind') == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
@@ -37,16 +45,22 @@
             </div>
         </div>
 
-        <table class="sheet-table">
+        <table class="sheet-table {% if request.form.get('kind') != 'requisition' %}hide-store{% endif %}" id="entry-lines">
             <thead>
-                <tr><th>Item</th><th style="width:14%">Unit</th><th style="width:18%">Quantity</th><th style="width:6%"></th></tr>
+                <tr>
+                    <th>Item</th>
+                    <th style="width:14%">Unit</th>
+                    <th class="store-col" style="width:14%">In Store</th>
+                    <th style="width:16%">Quantity</th>
+                    <th style="width:6%"></th>
+                </tr>
             </thead>
             <tbody id="lines-body"></tbody>
         </table>
         <button type="button" class="btn btn-outline-dark btn-sm mt-2" id="add-line">+ Add Line</button>
 
         <div class="sheet-actions">
-            <button type="submit" class="btn btn-dark">Post Entries</button>
+            <button type="submit" class="btn btn-dark" id="entry-submit">Post Entries</button>
             <a href="{{ url_for('inventory.stock') }}" class="btn btn-outline-dark">Cancel</a>
         </div>
     </form>
@@ -57,4 +71,38 @@
 
 {% block extra_js %}
 {% include "inventory/_item_line_js.html" %}
+<script>
+(function () {
+    const kindSelect = document.getElementById('entry-kind');
+    const locationSelect = document.getElementById('entry-location');
+    const locationLabel = document.getElementById('location-label');
+    const table = document.getElementById('entry-lines');
+    const help = document.getElementById('entry-help');
+    const submitBtn = document.getElementById('entry-submit');
+    const normalHelp = help.textContent;
+    const storeName = {{ (store.name if store else 'Store Room')|tojson }};
+    const requisitionHelp = 'Moves stock out of ' + storeName + ' into the location you choose. Quantity can be the count unit (e.g. Bot) or ml.';
+
+    function syncKind() {
+        const requisition = kindSelect.value === 'requisition';
+        table.classList.toggle('hide-store', !requisition);
+        locationLabel.textContent = requisition ? 'Transfer to *' : 'Location *';
+        help.textContent = requisition ? requisitionHelp : normalHelp;
+        submitBtn.textContent = requisition ? 'Transfer from Store Room' : 'Post Entries';
+        [...locationSelect.options].forEach(function (option) {
+            const hide = requisition && option.dataset.kind === 'store';
+            option.hidden = hide;
+            option.disabled = hide;
+        });
+        const selected = locationSelect.selectedOptions[0];
+        if (requisition && selected && selected.disabled) {
+            const next = [...locationSelect.options].find(function (option) { return !option.disabled; });
+            if (next) locationSelect.value = next.value;
+        }
+    }
+
+    kindSelect.addEventListener('change', syncKind);
+    syncKind();
+})();
+</script>
 {% endblock %}

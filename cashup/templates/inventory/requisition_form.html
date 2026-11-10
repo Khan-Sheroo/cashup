@@ -1,28 +1,33 @@
 {% extends "inventory/_layout.html" %}
 
-{% block title %}New Requisition - CashUp{% endblock %}
+{% block title %}{{ 'Edit' if req else 'New' }} Requisition - CashUp{% endblock %}
 
 {% block inv_content %}
+{% set reference = request.form.get('reference', '') if request.form else ((req.reference or '') if req else '') %}
+{% set req_date = (request.form.get('req_date') or today.isoformat()) if request.form else (req.req_date.isoformat() if req else today.isoformat()) %}
+{% set from_id = request.form.get('from_location_id') if request.form else (req.from_location_id if req else (store.id if store else '')) %}
+{% set to_id = request.form.get('to_location_id') if request.form else (req.to_location_id if req else '') %}
+{% set note = request.form.get('note', '') if request.form else ((req.note or '') if req else '') %}
 <div class="work-sheet" style="max-width: 60rem;">
-    <h1>New Requisition</h1>
+    <h1>{{ 'Edit Requisition' if req else 'New Requisition' }}</h1>
     <div class="sheet-meta">
-        <small>Quantities in each item's count unit. "In Store" shows current Store Room stock.</small>
+        <small>{% if req %}Change the lines, date, or locations, then save. The old stock movement is replaced.{% else %}Quantities in each item's count unit. "In Store" shows current Store Room stock.{% endif %}</small>
     </div>
     <form method="POST">
         <div class="field-grid">
             <div class="settings-field">
                 <div class="label">Req No.</div>
-                <input type="text" name="reference" value="{{ request.form.get('reference', '') }}" placeholder="e.g. 2458">
+                <input type="text" name="reference" value="{{ reference }}" placeholder="e.g. 2458">
             </div>
             <div class="settings-field">
                 <div class="label">Date</div>
-                <input type="date" name="req_date" value="{{ request.form.get('req_date') or today.isoformat() }}">
+                <input type="date" name="req_date" value="{{ req_date }}">
             </div>
             <div class="settings-field">
                 <div class="label">From</div>
                 <select name="from_location_id">
                     {% for loc in locations %}
-                    <option value="{{ loc.id }}" {% if store and loc.id == store.id %}selected{% endif %}>{{ loc.name }}</option>
+                    <option value="{{ loc.id }}" {% if from_id|string == loc.id|string %}selected{% endif %}>{{ loc.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -30,13 +35,13 @@
                 <div class="label">To</div>
                 <select name="to_location_id">
                     {% for loc in locations if loc.kind != 'store' %}
-                    <option value="{{ loc.id }}" {% if request.form.get('to_location_id')|int == loc.id %}selected{% endif %}>{{ loc.name }}</option>
+                    <option value="{{ loc.id }}" {% if to_id|string == loc.id|string %}selected{% endif %}>{{ loc.name }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="settings-field">
                 <div class="label">Note</div>
-                <input type="text" name="note" value="{{ request.form.get('note', '') }}" placeholder="Optional">
+                <input type="text" name="note" value="{{ note }}" placeholder="Optional">
             </div>
         </div>
 
@@ -49,8 +54,8 @@
         <button type="button" class="btn btn-outline-dark btn-sm mt-2" id="add-line">+ Add Line</button>
 
         <div class="sheet-actions">
-            <button type="submit" class="btn btn-dark">Save &amp; Transfer Stock</button>
-            <a href="{{ url_for('inventory.requisitions') }}" class="btn btn-outline-dark">Cancel</a>
+            <button type="submit" class="btn btn-dark">{{ 'Save changes' if req else 'Save & Transfer Stock' }}</button>
+            <a href="{{ url_for('inventory.view_requisition', req_id=req.id) if req else url_for('inventory.requisitions') }}" class="btn btn-outline-dark">Cancel</a>
         </div>
     </form>
 </div>
@@ -59,5 +64,6 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>window.REQUISITION_LINES = {{ initial_lines|tojson }};</script>
 {% include "inventory/_item_line_js.html" %}
 {% endblock %}

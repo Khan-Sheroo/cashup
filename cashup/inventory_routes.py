@@ -39,6 +39,7 @@ ZERO = Decimal('0')
 
 ADJUST_KINDS = (
     ('receive', 'Receive (+)'),
+    ('requisition', 'Requisition — from Store Room'),
     ('waste', 'Waste / Breakage (-)'),
     ('correction', 'Correction (+/-)'),
     ('opening', 'Opening Balance (+)'),
@@ -155,6 +156,35 @@ def clear_stock_levels():
     return redirect(url_for('inventory.stock'))
 
 
+def _adjust_page(locations, items):
+    store = Location.store()
+    return render_template(
+        'inventory/adjust.html',
+        locations=locations, items=items, adjust_kinds=ADJUST_KINDS, today=date.today(),
+        store=store, store_stock=on_hand_map(store.id) if store else {},
+    )
+
+
+def _adjust_lines():
+    """Filled manual-entry lines as (item, recipe-unit quantity, count-unit quantity)."""
+    lines = []
+    item_ids = request.form.getlist('line_item_id')
+    quantities = request.form.getlist('line_quantity')
+    units = request.form.getlist('line_unit')
+    for idx, raw_item in enumerate(item_ids):
+        item = CostItem.query.get(_parse_int(raw_item))
+        qty = to_dec(quantities[idx] if idx < len(quantities) else None)
+        if item is None or qty is None or qty == 0:
+            continue
+        in_base_units = idx < len(units) and units[idx] == 'base'
+        if in_base_units:
+            base, count_qty = qty, item.to_count_units(qty)
+        else:
+            count_qty, base = qty, item.to_base_units(qty)
+        lines.append((item, base, count_qty))
+    return lines
+
+
 @inventory_bp.route('/adjust', methods=['GET', 'POST'])
 def adjust():
     locations = Location.ordered()
@@ -166,20 +196,48 @@ def adjust():
         note = (request.form.get('note') or '').strip() or None
         if location is None:
             flash('Choose a location', 'error')
-            return render_template('inventory/adjust.html', locations=locations, items=items,
-                                   adjust_kinds=ADJUST_KINDS, today=date.today())
+            return _adjust_page(locations, items)
 
-        posted = 0
-        item_ids = request.form.getlist('line_item_id')
-        quantities = request.form.getlist('line_quantity')
-        units = request.form.getlist('line_unit')
-        for idx, raw_item in enumerate(item_ids):
-            item = CostItem.query.get(_parse_int(raw_item))
-            qty = to_dec(quantities[idx] if idx < len(quantities) else None)
-            if item is None or qty is None or qty == 0:
-                continue
-            in_base_units = idx < len(units) and units[idx] == 'base'
-            base = qty if in_base_units else item.to_base_units(qty)
+        lines = _adjust_lines()
+        if kind == 'requisition':
+            lines = [(item, base, count_qty) for item, base, count_qty in lines if count_qty > 0]
+        if not lines:
+            flash('Enter at least one item with a quantity', 'error')
+            return _adjust_page(locations, items)
+
+        if kind == 'requisition':
+            store = Location.store()
+            if store is None:
+                flash('No Store Room is set up to transfer from', 'error')
+                return _adjust_page(locations, items)
+            if location.id == store.id:
+                flash('Choose the location receiving the stock. The Store Room is the source.', 'error')
+                return _adjust_page(locations, items)
+            req = Requisition(
+                req_date=when, from_location_id=store.id, to_location_id=location.id, note=note,
+            )
+            for item, _base, count_qty in lines:
+                req.lines.append(RequisitionLine(item_id=item.id, quantity=count_qty))
+            db.session.add(req)
+            db.session.flush()
+            movement_note = f'Req {req.id}: {store.name} → {location.name}'
+            if note:
+                movement_note = f'{movement_note} — {note}'
+            for item, base, _count_qty in lines:
+                for loc_id, movement_kind, qty in (
+                    (store.id, 'transfer_out', -base),
+                    (location.id, 'transfer_in', base),
+                ):
+                    db.session.add(StockMovement(
+                        item_id=item.id, location_id=loc_id, movement_date=when,
+                        kind=movement_kind, quantity=qty, unit_cost=item.cost_per_unit(),
+                        requisition_id=req.id, note=movement_note,
+                    ))
+            db.session.commit()
+            flash(f'Requisition saved — {len(req.lines)} item{"s" if len(req.lines) != 1 else ""} moved from {store.name} to {location.name}', 'success')
+            return redirect(url_for('inventory.view_requisition', req_id=req.id))
+
+        for item, base, _count_qty in lines:
             if kind == 'waste':
                 movement_kind, base = 'waste', -abs(base)
             elif kind == 'opening':
@@ -192,17 +250,11 @@ def adjust():
                 item_id=item.id, location_id=location.id, movement_date=when,
                 kind=movement_kind, quantity=base, unit_cost=item.cost_per_unit(), note=note,
             ))
-            posted += 1
-        if not posted:
-            flash('Enter at least one item with a quantity', 'error')
-            return render_template('inventory/adjust.html', locations=locations, items=items,
-                                   adjust_kinds=ADJUST_KINDS, today=date.today())
         db.session.commit()
-        flash(f'{posted} stock line{"s" if posted != 1 else ""} posted to {location.name}', 'success')
+        flash(f'{len(lines)} stock line{"s" if len(lines) != 1 else ""} posted to {location.name}', 'success')
         return redirect(url_for('inventory.stock', location=location.id))
 
-    return render_template('inventory/adjust.html', locations=locations, items=items,
-                           adjust_kinds=ADJUST_KINDS, today=date.today())
+    return _adjust_page(locations, items)
 
 
 @inventory_bp.route('/items/<int:item_id>/movements')
@@ -582,6 +634,109 @@ def invoice_file(invoice_id):
 # Requisitions (store room -> outlet)
 # ---------------------------------------------------------------------------
 
+def _qty_text(value):
+    text = format(Decimal(value or 0), 'f').rstrip('0').rstrip('.')
+    return text or '0'
+
+
+def _posted_line_payload():
+    payload = []
+    item_ids = request.form.getlist('line_item_id')
+    quantities = request.form.getlist('line_quantity')
+    for idx, raw_item in enumerate(item_ids):
+        item_id = _parse_int(raw_item)
+        if not item_id:
+            continue
+        qty = quantities[idx] if idx < len(quantities) else ''
+        payload.append({'item_id': item_id, 'quantity': qty})
+    return payload
+
+
+def _saved_line_payload(req):
+    return [
+        {'item_id': line.item_id, 'quantity': _qty_text(line.quantity)}
+        for line in req.lines
+    ]
+
+
+def _requisition_items(req=None):
+    items = _items_sorted()
+    if req is None:
+        return items
+    known = {item.id for item in items}
+    for line in req.lines:
+        if line.item_id not in known and line.item is not None:
+            items.append(line.item)
+            known.add(line.item_id)
+    items.sort(key=lambda item: ((item.category or '\uffff').lower(), item.name.lower()))
+    return items
+
+
+def _store_stock_for_requisition(store, req=None):
+    """Store Room on hand. An open requisition's own quantity is added back so it can be edited."""
+    stock = on_hand_map(store.id) if store else {}
+    if req is None or store is None or req.from_location_id != store.id:
+        return stock
+    stock = dict(stock)
+    for line in req.lines:
+        if line.item is None:
+            continue
+        stock[line.item_id] = stock.get(line.item_id, ZERO) + line.item.to_base_units(line.quantity)
+    return stock
+
+
+def _read_requisition_lines():
+    parsed = []
+    item_ids = request.form.getlist('line_item_id')
+    quantities = request.form.getlist('line_quantity')
+    for idx, raw_item in enumerate(item_ids):
+        item = CostItem.query.get(_parse_int(raw_item))
+        qty = to_dec(quantities[idx] if idx < len(quantities) else None)
+        if item is None or qty is None or qty <= 0:
+            continue
+        parsed.append((item, qty))
+    return parsed
+
+
+def _replace_requisition_stock(req, from_loc, to_loc, lines):
+    """Replace lines and the stock movements for a requisition."""
+    req.lines.clear()
+    for item, count_qty in lines:
+        req.lines.append(RequisitionLine(item_id=item.id, quantity=count_qty))
+    db.session.flush()
+    StockMovement.query.filter_by(requisition_id=req.id).delete(synchronize_session=False)
+    note = f'Req {req.reference or req.id}: {from_loc.name} → {to_loc.name}'
+    if req.note:
+        note = f'{note} — {req.note}'
+    for line in req.lines:
+        item = line.item or CostItem.query.get(line.item_id)
+        base = item.to_base_units(line.quantity)
+        for loc_id, kind, qty in ((from_loc.id, 'transfer_out', -base),
+                                  (to_loc.id, 'transfer_in', base)):
+            db.session.add(StockMovement(
+                item_id=item.id, location_id=loc_id, movement_date=req.req_date,
+                kind=kind, quantity=qty, unit_cost=item.cost_per_unit(),
+                requisition_id=req.id, note=note,
+            ))
+
+
+def _render_requisition_form(req=None):
+    locations = Location.ordered()
+    store = Location.store()
+    if request.method == 'POST':
+        initial_lines = _posted_line_payload()
+    elif req is not None:
+        initial_lines = _saved_line_payload(req)
+    else:
+        initial_lines = []
+    return render_template(
+        'inventory/requisition_form.html',
+        locations=locations, store=store, items=_requisition_items(req),
+        store_stock=_store_stock_for_requisition(store, req),
+        today=date.today(), req=req, initial_lines=initial_lines,
+    )
+
+
 @inventory_bp.route('/requisitions')
 def requisitions():
     rows = Requisition.query.order_by(Requisition.req_date.desc(), Requisition.id.desc()).all()
@@ -590,57 +745,56 @@ def requisitions():
 
 @inventory_bp.route('/requisitions/new', methods=['GET', 'POST'])
 def new_requisition():
-    locations = Location.ordered()
-    store = Location.store()
-    items = _items_sorted()
-    store_stock = on_hand_map(store.id) if store else {}
-
-    def render():
-        return render_template('inventory/requisition_form.html', locations=locations,
-                               store=store, items=items, store_stock=store_stock,
-                               today=date.today())
-
     if request.method == 'POST':
         from_loc = Location.query.get(_parse_int(request.form.get('from_location_id')))
         to_loc = Location.query.get(_parse_int(request.form.get('to_location_id')))
+        lines = _read_requisition_lines()
         if from_loc is None or to_loc is None or from_loc.id == to_loc.id:
             flash('Choose two different locations', 'error')
-            return render()
+            return _render_requisition_form()
+        if not lines:
+            flash('Add at least one item with a quantity', 'error')
+            return _render_requisition_form()
         req = Requisition(
             reference=(request.form.get('reference') or '').strip() or None,
             req_date=_parse_date(request.form.get('req_date'), date.today()),
             from_location_id=from_loc.id, to_location_id=to_loc.id,
             note=(request.form.get('note') or '').strip() or None,
         )
-        item_ids = request.form.getlist('line_item_id')
-        quantities = request.form.getlist('line_quantity')
-        for idx, raw_item in enumerate(item_ids):
-            item = CostItem.query.get(_parse_int(raw_item))
-            qty = to_dec(quantities[idx] if idx < len(quantities) else None)
-            if item is None or qty is None or qty <= 0:
-                continue
-            req.lines.append(RequisitionLine(item_id=item.id, quantity=qty))
-        if not req.lines:
-            flash('Add at least one item with a quantity', 'error')
-            return render()
         db.session.add(req)
-        db.session.flush()
-        note = f'Req {req.reference or req.id}: {from_loc.name} → {to_loc.name}'
-        for line in req.lines:
-            item = CostItem.query.get(line.item_id)
-            base = item.to_base_units(line.quantity)
-            for loc_id, kind, qty in ((from_loc.id, 'transfer_out', -base),
-                                      (to_loc.id, 'transfer_in', base)):
-                db.session.add(StockMovement(
-                    item_id=item.id, location_id=loc_id, movement_date=req.req_date,
-                    kind=kind, quantity=qty, unit_cost=item.cost_per_unit(),
-                    requisition_id=req.id, note=note,
-                ))
+        _replace_requisition_stock(req, from_loc, to_loc, lines)
         db.session.commit()
         flash(f'Requisition saved — {len(req.lines)} items moved to {to_loc.name}', 'success')
         return redirect(url_for('inventory.view_requisition', req_id=req.id))
 
-    return render()
+    return _render_requisition_form()
+
+
+@inventory_bp.route('/requisitions/<int:req_id>/edit', methods=['GET', 'POST'])
+def edit_requisition(req_id):
+    """Change a saved requisition and rebuild the stock movement."""
+    req = Requisition.query.get_or_404(req_id)
+    if request.method == 'POST':
+        from_loc = Location.query.get(_parse_int(request.form.get('from_location_id')))
+        to_loc = Location.query.get(_parse_int(request.form.get('to_location_id')))
+        lines = _read_requisition_lines()
+        if from_loc is None or to_loc is None or from_loc.id == to_loc.id:
+            flash('Choose two different locations', 'error')
+            return _render_requisition_form(req)
+        if not lines:
+            flash('Add at least one item with a quantity', 'error')
+            return _render_requisition_form(req)
+        req.reference = (request.form.get('reference') or '').strip() or None
+        req.req_date = _parse_date(request.form.get('req_date'), req.req_date)
+        req.from_location_id = from_loc.id
+        req.to_location_id = to_loc.id
+        req.note = (request.form.get('note') or '').strip() or None
+        _replace_requisition_stock(req, from_loc, to_loc, lines)
+        db.session.commit()
+        flash(f'Requisition updated — {len(req.lines)} items moved to {to_loc.name}', 'success')
+        return redirect(url_for('inventory.view_requisition', req_id=req.id))
+
+    return _render_requisition_form(req)
 
 
 @inventory_bp.route('/requisitions/<int:req_id>')
