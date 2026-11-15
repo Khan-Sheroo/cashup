@@ -3,9 +3,12 @@ from flask import (
     current_app, send_from_directory, abort,
 )
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 from cashup import db
 from cashup.models import (
     Staff, StaffDocument, StaffFolder, CashUp, CardMachineBatch, WaiterTip, AppSettings, DailySummary,
+    Referral, ReferralEstablishment,
 )
 from cashup.settings_util import (
     CURRENCIES,
@@ -934,6 +937,7 @@ def turnover_trend():
             query = query.filter(CashUp.staff_id == int(staff_id))
         except ValueError:
             return jsonify({'error': 'Unknown staff member'}), 400
+    compare = request.args.get('compare', '').strip() in ('1', 'true', 'yes')
     by_date = {row_date: float(total or 0) for row_date, total in query.group_by(CashUp.date).all()}
     points = []
     cursor = start
@@ -956,10 +960,37 @@ def turnover_trend():
         ).order_by(Staff.name).all()
     else:
         recent_staff = []
+    series = []
+    if compare and recent_staff:
+        grouped = db.session.query(
+            CashUp.staff_id,
+            CashUp.date,
+            func.sum(CashUp.turnover),
+        ).filter(
+            CashUp.submitted.is_(True),
+            CashUp.date >= start,
+            CashUp.date <= end,
+            CashUp.staff_id.in_([person.id for person in recent_staff]),
+        ).group_by(CashUp.staff_id, CashUp.date).all()
+        by_staff = {}
+        for person_id, row_date, total in grouped:
+            by_staff.setdefault(person_id, {})[row_date] = float(total or 0)
+        for person in recent_staff:
+            amounts = by_staff.get(person.id, {})
+            person_points = []
+            cursor = start
+            while cursor <= end:
+                person_points.append({
+                    'date': cursor.isoformat(),
+                    'turnover': amounts.get(cursor, 0.0),
+                })
+                cursor += timedelta(days=1)
+            series.append({'id': person.id, 'name': person.name, 'points': person_points})
     return jsonify({
         'start': start.isoformat(),
         'end': end.isoformat(),
         'points': points,
+        'series': series,
         'staff': [{'id': person.id, 'name': person.name} for person in recent_staff],
     })
 
@@ -1623,21 +1654,219 @@ def save_tip():
     if staff is None:
         return jsonify({'success': False, 'error': 'Person not found'}), 404
 
-    row = WaiterTip.query.filter_by(staff_id=staff_id, date=tip_date).first()
-    if row is None:
-        row = WaiterTip(
-            staff_id=staff_id,
-            date=tip_date,
-            tip_amount=amount,
-            box_office_amount=0,
-            manual=True,
-        )
-        db.session.add(row)
-    else:
-        row.tip_amount = amount
-        row.manual = True
-    db.session.commit()
+    def apply_tip():
+        row = WaiterTip.query.filter_by(staff_id=staff_id, date=tip_date).first()
+        if row is None:
+            row = WaiterTip(
+                staff_id=staff_id,
+                date=tip_date,
+                tip_amount=amount,
+                box_office_amount=0,
+                manual=True,
+            )
+            db.session.add(row)
+        else:
+            row.tip_amount = amount
+            row.manual = True
+
+    apply_tip()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        apply_tip()
+        db.session.commit()
     return jsonify({'success': True, 'amount': float(amount)})
+
+
+def _referral_period():
+    """Month or custom range from the query string or a submitted form."""
+    view = request.values.get('view', 'month')
+    if view not in ('month', 'custom'):
+        view = 'month'
+    today = date.today()
+    if view == 'custom':
+        start = _parse_iso_date(request.values.get('start', '')) or today.replace(day=1)
+        end = _parse_iso_date(request.values.get('end', '')) or today
+    else:
+        start, end = _month_bounds(request.values.get('month', ''))
+    if end < start:
+        start, end = end, start
+    month_start = date(start.year, start.month, 1)
+    return view, start, end, month_start.strftime('%Y-%m')
+
+
+def _referral_redirect(view, start, end, month_value):
+    if view == 'custom':
+        return redirect(url_for(
+            'cashup.referrals', view='custom', start=start.isoformat(), end=end.isoformat(),
+        ))
+    return redirect(url_for('cashup.referrals', view='month', month=month_value))
+
+
+def _referral_payload(form):
+    """Validate one referral. Returns (fields, error message)."""
+    establishment = ' '.join((form.get('establishment') or '').split())
+    guest_name = ' '.join((form.get('guest_name') or '').split())
+    visit_date = _parse_iso_date(form.get('date', ''))
+    pax_text = (form.get('pax') or '').strip()
+    spend = parse_batch_total(form.get('spend') or '0')
+    if not establishment:
+        return None, 'Enter the establishment that sent the guests'
+    if not guest_name:
+        return None, 'Enter the guest name'
+    if visit_date is None:
+        return None, 'Enter the date'
+    if not pax_text.isdigit() or int(pax_text) < 1:
+        return None, 'Enter how many guests were in the party'
+    if spend is None or spend < 0:
+        return None, 'Enter the spend'
+    return {
+        'establishment': establishment,
+        'guest_name': guest_name,
+        'visit_date': visit_date,
+        'pax': int(pax_text),
+        'spend': spend,
+    }, None
+
+
+def _establishment_for(name):
+    existing = ReferralEstablishment.query.filter(
+        func.lower(ReferralEstablishment.name) == name.lower()
+    ).first()
+    if existing:
+        return existing
+    row = ReferralEstablishment(name=name)
+    db.session.add(row)
+    db.session.flush()
+    return row
+
+
+def _drop_unused_establishment(establishment_id):
+    still_used = Referral.query.filter_by(establishment_id=establishment_id).first()
+    if still_used is None:
+        row = db.session.get(ReferralEstablishment, establishment_id)
+        if row is not None:
+            db.session.delete(row)
+
+
+def build_referral_report(start, end):
+    visits = Referral.query.options(joinedload(Referral.establishment)).filter(
+        Referral.visit_date >= start,
+        Referral.visit_date <= end,
+    ).order_by(Referral.visit_date.desc(), Referral.id.desc()).all()
+    grouped = {}
+    for visit in visits:
+        bucket = grouped.setdefault(visit.establishment_id, {
+            'name': visit.establishment.name,
+            'visits': 0,
+            'pax': 0,
+            'spend': Decimal('0'),
+        })
+        bucket['visits'] += 1
+        bucket['pax'] += visit.pax or 0
+        bucket['spend'] += Decimal(visit.spend or 0)
+    by_establishment = sorted(
+        grouped.values(),
+        key=lambda row: (-row['spend'], row['name'].lower()),
+    )
+    return {
+        'start': start,
+        'end': end,
+        'visits': visits,
+        'by_establishment': by_establishment,
+        'visit_count': len(visits),
+        'guest_count': sum(visit.pax or 0 for visit in visits),
+        'spend_total': sum((Decimal(visit.spend or 0) for visit in visits), Decimal('0')),
+        'establishment_count': len(by_establishment),
+    }
+
+
+def _render_referrals(editing=None, form=None):
+    view, start, end, month_value = _referral_period()
+    month_start = date(start.year, start.month, 1)
+    report = build_referral_report(start, end)
+    names = [
+        row.name for row in ReferralEstablishment.query.order_by(ReferralEstablishment.name).all()
+    ]
+    return render_template(
+        'cashup/referrals.html',
+        view=view,
+        month_value=month_value,
+        prev_month=_shift_month(month_start, -1).strftime('%Y-%m'),
+        next_month=_shift_month(month_start, 1).strftime('%Y-%m'),
+        editing=editing,
+        form=form if form is not None else {},
+        today=date.today().isoformat(),
+        establishments=names,
+        **report,
+    )
+
+
+@cashup_bp.route('/referrals', methods=['GET', 'POST'])
+def referrals():
+    """Record parties sent by other establishments, and total them for a period."""
+    if request.method == 'POST':
+        view, start, end, month_value = _referral_period()
+        payload, error = _referral_payload(request.form)
+        if error:
+            flash(error, 'error')
+            return _render_referrals(form=request.form)
+        referral = Referral(
+            establishment=_establishment_for(payload['establishment']),
+            guest_name=payload['guest_name'],
+            pax=payload['pax'],
+            visit_date=payload['visit_date'],
+            spend=payload['spend'],
+        )
+        db.session.add(referral)
+        db.session.commit()
+        flash('Referral saved', 'success')
+        return _referral_redirect(view, start, end, month_value)
+    return _render_referrals()
+
+
+@cashup_bp.route('/referrals/<int:referral_id>/edit', methods=['GET', 'POST'])
+def edit_referral(referral_id):
+    referral = db.session.get(Referral, referral_id)
+    if referral is None:
+        flash('That referral was not found', 'error')
+        return redirect(url_for('cashup.referrals'))
+    if request.method == 'POST':
+        view, start, end, month_value = _referral_period()
+        payload, error = _referral_payload(request.form)
+        if error:
+            flash(error, 'error')
+            return _render_referrals(editing=referral, form=request.form)
+        previous_id = referral.establishment_id
+        referral.establishment = _establishment_for(payload['establishment'])
+        referral.guest_name = payload['guest_name']
+        referral.pax = payload['pax']
+        referral.visit_date = payload['visit_date']
+        referral.spend = payload['spend']
+        db.session.flush()
+        if previous_id != referral.establishment_id:
+            _drop_unused_establishment(previous_id)
+        db.session.commit()
+        flash('Referral updated', 'success')
+        return _referral_redirect(view, start, end, month_value)
+    return _render_referrals(editing=referral)
+
+
+@cashup_bp.route('/referrals/<int:referral_id>/delete', methods=['POST'])
+def delete_referral(referral_id):
+    referral = db.session.get(Referral, referral_id)
+    view, start, end, month_value = _referral_period()
+    if referral is None:
+        flash('That referral was not found', 'error')
+        return _referral_redirect(view, start, end, month_value)
+    establishment_id = referral.establishment_id
+    db.session.delete(referral)
+    db.session.flush()
+    _drop_unused_establishment(establishment_id)
+    db.session.commit()
+    flash('Referral deleted', 'success')
+    return _referral_redirect(view, start, end, month_value)
 
 
 # Settings blueprint

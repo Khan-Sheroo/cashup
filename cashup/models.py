@@ -796,6 +796,39 @@ class ProductionRun(db.Model):
         return sum((Decimal(l.batch_cost or 0) * Decimal(l.batches or 0) for l in self.lines), Decimal('0'))
 
 
+class ReferralEstablishment(db.Model):
+    """A hotel or other place that sends guests to the restaurant."""
+    __tablename__ = 'referral_establishment'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    referrals = db.relationship('Referral', back_populates='establishment')
+
+    def __repr__(self):
+        return f'<ReferralEstablishment {self.name}>'
+
+
+class Referral(db.Model):
+    """One party sent by an establishment."""
+    __tablename__ = 'referral'
+
+    id = db.Column(db.Integer, primary_key=True)
+    establishment_id = db.Column(db.Integer, db.ForeignKey('referral_establishment.id'), nullable=False)
+    guest_name = db.Column(db.String(120), nullable=False)
+    pax = db.Column(db.Integer, nullable=False)
+    visit_date = db.Column(db.Date, nullable=False)
+    spend = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    establishment = db.relationship('ReferralEstablishment', back_populates='referrals')
+
+    def __repr__(self):
+        return f'<Referral {self.guest_name} {self.visit_date}>'
+
+
 class ProductionLine(db.Model):
     __tablename__ = 'production_line'
 

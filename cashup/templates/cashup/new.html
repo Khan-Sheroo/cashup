@@ -23,9 +23,33 @@
         margin-bottom: 0.5rem;
     }
     .sheet-heading .btn { border-radius: 0; }
-    .trend-chart { position: relative; }
-    .trend-chart svg { width: 100%; height: auto; display: block; }
+    .trend-chart { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .trend-chart svg { width: 100%; flex: 1 1 auto; min-height: 0; height: auto; display: block; }
     .trend-chart .empty-note { color: #666; margin: 1rem 0; }
+    .trend-value { opacity: 0; pointer-events: none; }
+    .trend-print-title { display: none; }
+    .trend-legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-top: 0.75rem; }
+    .trend-legend span { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; }
+    .trend-swatch { width: 0.9rem; height: 0.35rem; display: inline-block; }
+    #turnoverTrendModal .modal-content { height: 100%; border-radius: 0; display: flex; flex-direction: column; }
+    #turnoverTrendModal .modal-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+    #turnoverTrendModal .trend-chart svg { width: 100%; height: 100%; }
+    @media print {
+        body.trend-print * { visibility: hidden; }
+        body.trend-print #turnoverTrendModal,
+        body.trend-print #turnoverTrendModal * { visibility: visible; }
+        body.trend-print #turnoverTrendModal {
+            position: absolute !important;
+            left: 0; top: 0; width: 100%; height: auto; overflow: visible;
+        }
+        body.trend-print #turnoverTrendModal .modal-dialog { margin: 0; max-width: none; width: 100%; height: auto; }
+        body.trend-print #turnoverTrendModal .modal-content { height: auto; border: 0; }
+        body.trend-print #turnoverTrendModal .trend-chart svg { height: 165mm; }
+        body.trend-print .trend-value { opacity: 1; }
+        body.trend-print .trend-print-title { display: block; font-size: 16pt; font-weight: 700; margin-bottom: 0.25rem; }
+        body.trend-print .trend-tip,
+        body.trend-print .no-print { display: none !important; }
+    }
     .trend-tip {
         position: absolute;
         z-index: 3;
@@ -987,17 +1011,22 @@
     {% include "cashup/_history_tables.html" %}
 </div>
 <div class="modal fade" id="turnoverTrendModal" tabindex="-1" aria-labelledby="turnoverTrendTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-fullscreen">
         <div class="modal-content" style="border-radius: 0; border: 1px solid #333;">
             <div class="modal-header" style="border-bottom: 1px solid #333;">
                 <h5 class="modal-title" id="turnoverTrendTitle">Turnover trend</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="d-flex align-items-center gap-2 no-print">
+                    <button type="button" class="btn btn-outline-dark btn-sm" id="trendPrint">Print</button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
             </div>
             <div class="modal-body">
+                <div id="trendPrintTitle" class="trend-print-title">Turnover trend</div>
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                     <label for="trendStaff" class="mb-0 fw-bold">Staff</label>
-                    <select id="trendStaff" class="form-select form-select-sm" style="width: auto; border-radius: 0; border-color: #333;">
+                    <select id="trendStaff" class="form-select form-select-sm no-print" style="width: auto; border-radius: 0; border-color: #333;">
                         <option value="">Everyone</option>
+                        <option value="__compare__">Comparative</option>
                     </select>
                     <span id="trendStatus" class="text-muted small">Last 30 days</span>
                 </div>
@@ -2649,58 +2678,88 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const symbol = (typeof TIP_SETTINGS !== 'undefined' && TIP_SETTINGS.currency_symbol) || '';
 
+    const TREND_COLORS = ['#1F4E79', '#C45911', '#548235', '#7030A0', '#C00000', '#0D7377', '#BF8F00', '#833C0C', '#2F5496', '#385723', '#1B4F72', '#6B2D5B'];
+
     function moneyLabel(value) {
         const n = Number(value) || 0;
         return symbol + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     }
 
-    function drawTrend(points) {
+    function moneyExact(value) {
+        const n = Number(value) || 0;
+        return symbol + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function escapeXml(text) {
+        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    }
+
+    function drawTrend(series) {
+        const drawn = (series || []).filter(entry => (entry.points || []).length);
+        const points = drawn[0] ? drawn[0].points : [];
         if (!points.length) {
             chartEl.innerHTML = '<p class="empty-note">No turnover in the last 30 days.</p>';
             return;
         }
-        const values = points.map(p => Number(p.turnover) || 0);
-        const peak = Math.max(...values, 0);
+        const peak = Math.max(0, ...drawn.flatMap(entry => entry.points.map(p => Number(p.turnover) || 0)));
         if (peak <= 0) {
             chartEl.innerHTML = '<p class="empty-note">No submitted turnover in the last 30 days.</p>';
             return;
         }
-        const max = peak * 1.08;
-        const w = 760;
-        const h = 300;
-        const pad = { l: 72, r: 16, t: 18, b: 42 };
+        const max = peak * 1.12;
+        const w = 1100;
+        const h = 640;
+        const pad = { l: 78, r: 24, t: 86, b: 46 };
         const innerW = w - pad.l - pad.r;
         const innerH = h - pad.t - pad.b;
         const xAt = i => pad.l + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
         const yAt = v => pad.t + innerH - (v / max) * innerH;
-        const line = points.map((p, i) => `${i ? 'L' : 'M'}${xAt(i).toFixed(1)},${yAt(values[i]).toFixed(1)}`).join(' ');
         const ticks = [0, 0.25, 0.5, 0.75, 1].map(step => {
             const value = max * step;
             const y = yAt(value);
             return `<line x1="${pad.l}" y1="${y.toFixed(1)}" x2="${w - pad.r}" y2="${y.toFixed(1)}" stroke="#e5e5e5" stroke-width="1"></line>
-                <text x="${pad.l - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#555">${moneyLabel(value)}</text>`;
+                <text x="${pad.l - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#555">${moneyLabel(value)}</text>`;
         }).join('');
         const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const dayLabel = iso => {
             const parts = iso.split('-');
             return `${Number(parts[2])} ${months[Number(parts[1]) - 1]} ${parts[0]}`;
         };
-        const labelEvery = points.length > 16 ? 5 : (points.length > 8 ? 2 : 1);
+        const labelEvery = points.length > 16 ? 2 : 1;
         const labels = points.map((p, i) => {
             if (i % labelEvery !== 0 && i !== points.length - 1) return '';
-            return `<text x="${xAt(i).toFixed(1)}" y="${h - 12}" text-anchor="middle" font-size="11" fill="#555">${dayLabel(p.date).replace(/ \d{4}$/, '')}</text>`;
+            return `<text x="${xAt(i).toFixed(1)}" y="${h - 14}" text-anchor="middle" font-size="11" fill="#555">${dayLabel(p.date).replace(/ \d{4}$/, '')}</text>`;
         }).join('');
-        const dots = points.map((p, i) => {
-            const cx = xAt(i).toFixed(1);
-            const cy = yAt(values[i]).toFixed(1);
-            return `<circle class="trend-dot" data-i="${i}" cx="${cx}" cy="${cy}" r="4.5" fill="#1F4E79"></circle>`;
-        }).join('');
-        chartEl.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Turnover line graph">
+        const paths = [];
+        const dots = [];
+        const printValues = [];
+        const hits = [];
+        drawn.forEach((entry, s) => {
+            const color = TREND_COLORS[s % TREND_COLORS.length];
+            const values = entry.points.map(p => Number(p.turnover) || 0);
+            const line = values.map((value, i) => `${i ? 'L' : 'M'}${xAt(i).toFixed(1)},${yAt(value).toFixed(1)}`).join(' ');
+            paths.push(`<path d="${line}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path>`);
+            values.forEach((value, i) => {
+                const x = xAt(i);
+                const y = yAt(value);
+                dots.push(`<circle class="trend-dot" data-s="${s}" data-i="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5" fill="${color}"></circle>`);
+                if (value) {
+                    printValues.push(`<text class="trend-value" x="7" y="0" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(-90)" text-anchor="start" font-size="9" fill="${color}">${escapeXml(moneyExact(value))}</text>`);
+                }
+                hits.push({ s, i, x, y, value, name: entry.name, date: entry.points[i].date, color });
+            });
+        });
+        const legend = drawn.length > 1
+            ? `<div class="trend-legend">${drawn.map((entry, s) => `<span><i class="trend-swatch" style="background:${TREND_COLORS[s % TREND_COLORS.length]}"></i>${escapeXml(entry.name)}</span>`).join('')}</div>`
+            : '';
+        chartEl.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Turnover line graph">
             ${ticks}
-            <path d="${line}" fill="none" stroke="#1F4E79" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></path>
-            ${dots}
+            ${paths.join('')}
+            ${dots.join('')}
+            ${printValues.join('')}
             ${labels}
         </svg>
+        ${legend}
         <div class="trend-tip" hidden>
             <div class="trend-tip-date"></div>
             <div class="trend-tip-amount"></div>
@@ -2710,10 +2769,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const tip = chartEl.querySelector('.trend-tip');
         const tipDate = tip.querySelector('.trend-tip-date');
         const tipAmount = tip.querySelector('.trend-tip-amount');
-        let active = -1;
+        let active = '';
+
+        function svgMetrics() {
+            const rect = svg.getBoundingClientRect();
+            const scale = Math.min(rect.width / w, rect.height / h) || 1;
+            return {
+                rect,
+                scale,
+                originX: rect.left + (rect.width - w * scale) / 2,
+                originY: rect.top + (rect.height - h * scale) / 2,
+            };
+        }
 
         function hideTip() {
-            active = -1;
+            active = '';
             tip.classList.remove('is-on');
             tip.hidden = true;
             chartEl.querySelectorAll('.trend-dot').forEach(dot => {
@@ -2722,24 +2792,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        function showTip(i) {
-            if (i === active) return;
-            active = i;
-            tipDate.textContent = dayLabel(points[i].date);
-            const amount = values[i].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            tipAmount.textContent = symbol + amount;
+        function showTip(hit) {
+            const key = `${hit.s}:${hit.i}`;
+            if (key === active) return;
+            active = key;
+            const who = drawn.length > 1 ? `${hit.name} — ` : '';
+            tipDate.textContent = who + dayLabel(hit.date);
+            tipAmount.textContent = moneyExact(hit.value);
             tip.hidden = false;
             tip.classList.add('is-on');
             chartEl.querySelectorAll('.trend-dot').forEach(dot => {
-                const on = Number(dot.dataset.i) === i;
+                const on = Number(dot.dataset.s) === hit.s && Number(dot.dataset.i) === hit.i;
                 dot.setAttribute('r', on ? '6.5' : '4.5');
                 dot.setAttribute('stroke', on ? '#111' : 'none');
                 dot.setAttribute('stroke-width', on ? '2' : '0');
             });
-            const svgRect = svg.getBoundingClientRect();
+            const metrics = svgMetrics();
             const hostRect = chartEl.getBoundingClientRect();
-            const px = svgRect.left + (xAt(i) / w) * svgRect.width;
-            const py = svgRect.top + (yAt(values[i]) / h) * svgRect.height;
+            const px = metrics.originX + hit.x * metrics.scale;
+            const py = metrics.originY + hit.y * metrics.scale;
             let left = px - hostRect.left - tip.offsetWidth / 2;
             let top = py - hostRect.top - tip.offsetHeight - 10;
             left = Math.max(4, Math.min(left, hostRect.width - tip.offsetWidth - 4));
@@ -2749,29 +2820,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         svg.addEventListener('mousemove', event => {
-            const rect = svg.getBoundingClientRect();
-            if (!rect.width || !rect.height) return;
-            const mx = ((event.clientX - rect.left) / rect.width) * w;
-            const my = ((event.clientY - rect.top) / rect.height) * h;
-            let best = -1;
-            let bestDist = 22;
-            points.forEach((p, i) => {
-                const dist = Math.hypot(mx - xAt(i), my - yAt(values[i]));
+            const metrics = svgMetrics();
+            if (!metrics.rect.width || !metrics.rect.height) return;
+            const mx = (event.clientX - metrics.originX) / metrics.scale;
+            const my = (event.clientY - metrics.originY) / metrics.scale;
+            let best = null;
+            let bestDist = Math.max(22, 18 / metrics.scale);
+            hits.forEach(hit => {
+                const dist = Math.hypot(mx - hit.x, my - hit.y);
                 if (dist < bestDist) {
-                    best = i;
+                    best = hit;
                     bestDist = dist;
                 }
             });
-            if (best < 0) hideTip();
+            if (!best) hideTip();
             else showTip(best);
         });
         svg.addEventListener('mouseleave', hideTip);
     }
 
+    function printHeading() {
+        const selected = staffSelect.options[staffSelect.selectedIndex];
+        const who = selected ? selected.textContent : 'Everyone';
+        return `Turnover trend — ${who}`;
+    }
+
     async function loadTrend() {
         statusEl.textContent = 'Loading…';
+        const compare = staffSelect.value === '__compare__';
         const params = new URLSearchParams();
-        if (staffSelect.value) params.set('staff_id', staffSelect.value);
+        if (compare) params.set('compare', '1');
+        else if (staffSelect.value) params.set('staff_id', staffSelect.value);
         try {
             const res = await fetch(`/cashup/turnover-trend?${params.toString()}`);
             const data = await res.json();
@@ -2786,6 +2865,10 @@ document.addEventListener('DOMContentLoaded', () => {
             everyone.value = '';
             everyone.textContent = 'Everyone';
             staffSelect.appendChild(everyone);
+            const comparative = document.createElement('option');
+            comparative.value = '__compare__';
+            comparative.textContent = 'Comparative';
+            staffSelect.appendChild(comparative);
             (data.staff || []).forEach(person => {
                 const option = document.createElement('option');
                 option.value = String(person.id);
@@ -2794,13 +2877,34 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const stillListed = [...staffSelect.options].some(option => option.value === current);
             staffSelect.value = stillListed ? current : '';
-            statusEl.textContent = 'Last 30 days. Staff with no turnover in the past 7 days are hidden.';
-            drawTrend(data.points || []);
+            const title = document.getElementById('trendPrintTitle');
+            if (title) title.textContent = printHeading();
+            statusEl.textContent = compare
+                ? 'Last 30 days. Each line is one person. Staff with no turnover in the past 7 days are hidden.'
+                : 'Last 30 days. Staff with no turnover in the past 7 days are hidden.';
+            const series = compare
+                ? (data.series || [])
+                : [{ name: staffSelect.options[staffSelect.selectedIndex].textContent, points: data.points || [] }];
+            drawTrend(series);
         } catch (err) {
             statusEl.textContent = 'Could not load the trend';
             chartEl.innerHTML = '';
         }
     }
+
+    document.getElementById('trendPrint').addEventListener('click', () => {
+        const style = document.createElement('style');
+        style.id = 'trend-print-page';
+        style.textContent = '@page { size: landscape; margin: 8mm; }';
+        document.head.appendChild(style);
+        document.body.classList.add('trend-print');
+        window.print();
+    });
+    window.addEventListener('afterprint', () => {
+        document.body.classList.remove('trend-print');
+        const style = document.getElementById('trend-print-page');
+        if (style) style.remove();
+    });
 
     modalEl.addEventListener('shown.bs.modal', loadTrend);
     staffSelect.addEventListener('change', loadTrend);

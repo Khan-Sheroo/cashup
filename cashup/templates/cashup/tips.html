@@ -396,7 +396,10 @@ async function saveTip(input) {
 function persistTip(input) {
     const current = input.dataset.committed || '';
     if (current === (input.dataset.saved || '')) return;
+    if (input.dataset.saving === current) return;
+    input.dataset.saving = current;
     saveTip(input).then((ok) => {
+        if (input.dataset.saving === current) input.dataset.saving = '';
         if (ok) input.dataset.saved = current;
     });
 }

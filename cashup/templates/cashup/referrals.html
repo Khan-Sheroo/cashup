@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Referral Tracker - CashUp{% endblock %}
+
+{% block extra_css %}
+<style>
+    .work-sheet {
+        background: #fff;
+        color: #111;
+        padding: 1.5rem;
+        border: 1px solid #333;
+    }
+    .work-sheet h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+    }
+    .work-sheet .sheet-meta {
+        color: #555;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem 1.25rem;
+    }
+    .work-sheet h2 {
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid #111;
+        padding-bottom: 0.35rem;
+        margin: 1.25rem 0 0.75rem;
+    }
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .summary-item {
+        border: 1px solid #333;
+        padding: 0.5rem 0.65rem;
+        background: #fff;
+    }
+    .summary-item .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: #555;
+        margin-bottom: 0.15rem;
+    }
+    .summary-item .sheet-value {
+        display: block;
+        width: 100%;
+        font-size: 1.05rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #111;
+    }
+    .sheet-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        background: #fff;
+    }
+    .sheet-table th,
+    .sheet-table td {
+        border: 1px solid #333;
+        padding: 0.35rem 0.5rem;
+        vertical-align: middle;
+    }
+    .sheet-table thead th {
+        background: #f1f1f1;
+        font-weight: 700;
+        text-align: center;
+    }
+    .sheet-table thead th.col-name { text-align: left; }
+    .sheet-table tbody td.num,
+    .sheet-table tfoot td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+    .sheet-table tbody td.name { font-weight: 700; }
+    .sheet-table tfoot th,
+    .sheet-table tfoot td {
+        background: #f8f8f8;
+        font-weight: 700;
+    }
+    .sheet-table tfoot th { text-align: left; }
+    .sheet-table .empty {
+        color: #555;
+        text-align: left;
+        padding: 0.75rem;
+    }
+    .period-form,
+    .entry-form {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        gap: 0.75rem 1rem;
+    }
+    .entry-form label,
+    .period-form label {
+        display: block;
+        font-weight: 700;
+        margin: 0 0 0.2rem;
+    }
+    .entry-form input,
+    .period-form input[type="month"],
+    .period-form input[type="date"] {
+        border: 1px solid #333;
+        border-radius: 0;
+        padding: 0.3rem 0.45rem;
+    }
+    .entry-form .field-establishment { flex: 1 1 16rem; }
+    .entry-form .field-guest { flex: 1 1 14rem; }
+    .entry-form .field-pax { width: 6rem; }
+    .entry-form .field-date { width: 11rem; }
+    .entry-form .field-spend { width: 9rem; }
+    .entry-form input { width: 100%; }
+    .row-actions { white-space: nowrap; text-align: right; }
+    .row-actions form { display: inline; }
+    @media (max-width: 992px) {
+        .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set establishment_value = form.get('establishment', editing.establishment.name if editing else '') %}
+{% set guest_value = form.get('guest_name', editing.guest_name if editing else '') %}
+{% set pax_value = form.get('pax', editing.pax if editing else '') %}
+{% set date_value = form.get('date', editing.visit_date.isoformat() if editing else today) %}
+{% set spend_value = form.get('spend', '%.2f'|format(editing.spend|float) if editing else '') %}
+<div class="work-sheet">
+    <h1>Referral Tracker</h1>
+    <p class="sheet-meta">Record each party an establishment sends, then see who sent guests and what they spent.</p>
+
+    <h2>{% if editing %}Edit referral{% else %}New referral{% endif %}</h2>
+    <form class="entry-form" method="post" action="{% if editing %}{{ url_for('cashup.edit_referral', referral_id=editing.id) }}{% else %}{{ url_for('cashup.referrals') }}{% endif %}">
+        <input type="hidden" name="view" value="{{ view }}">
+        <input type="hidden" name="month" value="{{ month_value }}">
+        <input type="hidden" name="start" value="{{ start.isoformat() }}">
+        <input type="hidden" name="end" value="{{ end.isoformat() }}">
+        <div class="field-establishment">
+            <label for="establishment">Establishment</label>
+            <input id="establishment" name="establishment" list="establishment-names" value="{{ establishment_value }}" required autocomplete="off">
+            <datalist id="establishment-names">
+                {% for name in establishments %}
+                <option value="{{ name }}"></option>
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="field-guest">
+            <label for="guest_name">Guest</label>
+            <input id="guest_name" name="guest_name" value="{{ guest_value }}" required autocomplete="off">
+        </div>
+        <div class="field-pax">
+            <label for="pax">Pax</label>
+            <input id="pax" name="pax" type="number" min="1" step="1" value="{{ pax_value }}" required>
+        </div>
+        <div class="field-date">
+            <label for="visit_date">Date</label>
+            <input id="visit_date" name="date" type="date" value="{{ date_value }}" required>
+        </div>
+        <div class="field-spend">
+            <label for="spend">Spend</label>
+            <input id="spend" name="spend" inputmode="decimal" value="{{ spend_value }}" required>
+        </div>
+        <button type="submit" class="btn btn-dark">{% if editing %}Save changes{% else %}Save referral{% endif %}</button>
+        {% if editing %}
+        <a class="btn btn-outline-dark" href="{{ url_for('cashup.referrals', view=view, month=month_value, start=start.isoformat(), end=end.isoformat()) }}">Cancel</a>
+        {% endif %}
+    </form>
+
+    <h2>Lookup</h2>
+    <div class="sheet-meta">
+        <div>
+            {% if view == 'month' %}
+            {{ start.strftime('%B %Y') }}
+            {% else %}
+            {{ start.strftime('%d %b %Y') }} – {{ end.strftime('%d %b %Y') }}
+            {% endif %}
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('cashup.referrals', view='month', month=month_value) }}" class="btn btn-sm {% if view == 'month' %}btn-dark{% else %}btn-outline-dark{% endif %}">Month</a>
+            <a href="{{ url_for('cashup.referrals', view='custom', start=start.isoformat(), end=end.isoformat()) }}" class="btn btn-sm {% if view == 'custom' %}btn-dark{% else %}btn-outline-dark{% endif %}">Custom dates</a>
+        </div>
+    </div>
+
+    {% if view == 'month' %}
+    <form class="period-form" method="get" action="{{ url_for('cashup.referrals') }}">
+        <input type="hidden" name="view" value="month">
+        <div>
+            <label for="referralMonth">Month</label>
+            <input id="referralMonth" type="month" name="month" value="{{ month_value }}" required>
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline-dark">Show</button>
+        <a href="{{ url_for('cashup.referrals', view='month', month=prev_month) }}" class="btn btn-sm btn-outline-dark">Previous month</a>
+        <a href="{{ url_for('cashup.referrals', view='month', month=next_month) }}" class="btn btn-sm btn-outline-dark">Next month</a>
+    </form>
+    {% else %}
+    <form class="period-form" method="get" action="{{ url_for('cashup.referrals') }}">
+        <input type="hidden" name="view" value="custom">
+        <div>
+            <label for="referralStart">From</label>
+            <input id="referralStart" type="date" name="start" value="{{ start.isoformat() }}" required>
+        </div>
+        <div>
+            <label for="referralEnd">To</label>
+            <input id="referralEnd" type="date" name="end" value="{{ end.isoformat() }}" required>
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline-dark">Show</button>
+    </form>
+    {% endif %}
+
+    <div class="summary-grid" style="margin-top: 1rem;">
+        <div class="summary-item">
+            <div class="label">Establishments</div>
+            <div class="sheet-value">{{ establishment_count }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Visits</div>
+            <div class="sheet-value">{{ visit_count }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Guests</div>
+            <div class="sheet-value">{{ guest_count }}</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">Spend</div>
+            <div class="sheet-value">{{ spend_total|money }}</div>
+        </div>
+    </div>
+
+    <h2>Who sent them</h2>
+    <table class="sheet-table">
+        <thead>
+            <tr>
+                <th class="col-name">Establishment</th>
+                <th>Visits</th>
+                <th>Guests</th>
+                <th>Spend</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in by_establishment %}
+            <tr>
+                <td class="name">{{ row.name }}</td>
+                <td class="num">{{ row.visits }}</td>
+                <td class="num">{{ row.pax }}</td>
+                <td class="num">{{ row.spend|money }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td class="empty" colspan="4">No referrals in this period.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% if by_establishment %}
+        <tfoot>
+            <tr>
+                <th>Total</th>
+                <td class="num">{{ visit_count }}</td>
+                <td class="num">{{ guest_count }}</td>
+                <td class="num">{{ spend_total|money }}</td>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+
+    <h2>Each visit</h2>
+    <table class="sheet-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th class="col-name">Establishment</th>
+                <th class="col-name">Guest</th>
+                <th>Pax</th>
+                <th>Spend</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for visit in visits %}
+            <tr>
+                <td>{{ visit.visit_date.strftime('%d %b %Y') }}</td>
+                <td>{{ visit.establishment.name }}</td>
+                <td>{{ visit.guest_name }}</td>
+                <td class="num">{{ visit.pax }}</td>
+                <td class="num">{{ visit.spend|money }}</td>
+                <td class="row-actions">
+                    <a href="{{ url_for('cashup.edit_referral', referral_id=visit.id, view=view, month=month_value, start=start.isoformat(), end=end.isoformat()) }}">Edit</a>
+                    <form method="post" action="{{ url_for('cashup.delete_referral', referral_id=visit.id) }}" onsubmit="return confirm('Delete this referral?');">
+                        <input type="hidden" name="view" value="{{ view }}">
+                        <input type="hidden" name="month" value="{{ month_value }}">
+                        <input type="hidden" name="start" value="{{ start.isoformat() }}">
+                        <input type="hidden" name="end" value="{{ end.isoformat() }}">
+                        <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td class="empty" colspan="6">No referrals in this period.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
